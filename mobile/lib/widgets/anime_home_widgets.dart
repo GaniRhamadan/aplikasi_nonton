@@ -345,10 +345,8 @@ class AnimeVerticalCard extends StatelessWidget {
         ),
       );
 
-    if (cardWidth != null) {
-      return SizedBox(width: cardWidth, child: content);
-    }
-    return content;
+    final width = cardWidth ?? 130.0;
+    return SizedBox(width: width, child: content);
   }
 
   Widget _buildPlaceholder() {
@@ -408,12 +406,13 @@ class AnimeBannerCard extends StatelessWidget {
                   Image.network(
                     banner,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: AppColors.surfaceMuted,
-                      child: const Center(
-                        child: Icon(Icons.broken_image, color: AppColors.textMuted),
-                      ),
-                    ),
+                    errorBuilder: (context, error, stackTrace) => anime.posterUrl.isNotEmpty
+                        ? Image.network(
+                            anime.posterUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (c, e, s) => _buildBannerFallback(),
+                          )
+                        : _buildBannerFallback(),
                   ),
                   // Subtle gradient overlay for cinematic contrast
                   Container(
@@ -523,6 +522,43 @@ class AnimeBannerCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBannerFallback() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF1E2230),
+            Color(0xFF0F111A),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.movie_filter_rounded, size: 36, color: AppColors.accent),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                anime.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

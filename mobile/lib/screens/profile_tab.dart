@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import '../models/anime_models.dart';
 import '../services/storage_service.dart';
-import '../services/update_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/anime_card.dart';
-import '../widgets/anime_history_card.dart';
-import 'anime_detail_screen.dart';
+import 'favorite_screen.dart';
+import 'history_screen.dart';
 import 'settings_tab.dart';
 
 class ProfileTab extends StatefulWidget {
@@ -15,203 +12,120 @@ class ProfileTab extends StatefulWidget {
   State<ProfileTab> createState() => _ProfileTabState();
 }
 
-class _ProfileTabState extends State<ProfileTab>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  List<WatchHistoryItem> _history = [];
-  List<AnimeItem> _bookmarks = [];
+class _ProfileTabState extends State<ProfileTab> {
+  int _historyCount = 0;
+  int _bookmarkCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() {
-      if (mounted) setState(() {});
-    });
-    _loadData();
+    _loadStats();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  void _loadData() {
+  void _loadStats() {
     setState(() {
-      _history = StorageService.getHistory();
-      _bookmarks = StorageService.getBookmarks();
+      _historyCount = StorageService.getHistory().length;
+      _bookmarkCount = StorageService.getBookmarks().length;
     });
   }
 
-  Future<void> _deleteSingleHistory(WatchHistoryItem item) async {
-    await StorageService.deleteHistoryItem(item.animeId, item.animeSlug);
-    _loadData();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${item.animeTitle} dihapus dari riwayat'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
-  Future<void> _clearAllHistory() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Hapus Semua Riwayat?'),
-        content: const Text(
-          'Semua daftar tontonan yang tersimpan akan dihapus dari perangkat ini.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              minimumSize: const Size(80, 40),
-            ),
-            child: const Text('Hapus'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await StorageService.clearHistory();
-      _loadData();
-    }
-  }
-
-  void _showSettingsMenu() {
+  void _showNotificationSheet() {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.notifications_active_rounded,
+                      color: AppColors.accent, size: 24),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Pemberitahuan & Update',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Divider(color: AppColors.border),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
+                    color: AppColors.accentMuted,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.movie_filter_rounded,
+                        color: AppColors.accent, size: 22),
                   ),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.tune_rounded, color: AppColors.accent),
-                  title: const Text(
-                    'Pengaturan Pemutar & Subtitle',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
+                title: const Text(
+                  'Episode Baru Tersedia!',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                   ),
-                  subtitle: const Text(
-                    'Pilihan bahasa default (ID / EN) dan resolusi',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SettingsTab()),
-                    );
-                  },
                 ),
-                const Divider(height: 1, color: AppColors.border),
-                ListTile(
-                  leading: const Icon(Icons.system_update_rounded, color: AppColors.dateCyan),
-                  title: const Text(
-                    'Periksa Pembaruan Aplikasi',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  subtitle: Text(
-                    'Versi saat ini v${UpdateService.currentVersion}',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Memeriksa pembaruan aplikasi...'),
-                        duration: Duration(seconds: 1),
-                      ),
-                    );
-                    final update = await UpdateService.checkForUpdate();
-                    if (!mounted) return;
-                    if (update != null) {
-                      UpdateService.showUpdateModal(context, update);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Aplikasi Anda sudah versi terbaru!'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    }
-                  },
+                subtitle: const Text(
+                  'Solo Leveling S2 Ep 13 & One Piece Ep 1122 sudah dapat diputar dalam HD.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                 ),
-                const Divider(height: 1, color: AppColors.border),
-                ListTile(
-                  leading: const Icon(Icons.verified_user_rounded, color: AppColors.success),
-                  title: const Text(
-                    'Lisensi Open Source & Kredit (GPLv3)',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
+              ),
+              const SizedBox(height: 10),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF162520),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  subtitle: const Text(
-                    'Karya turunan dari pystardust/ani-cli',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  child: const Center(
+                    child: Icon(Icons.speed_rounded,
+                        color: AppColors.dateCyan, size: 22),
                   ),
-                  trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    showAboutDialog(
-                      context: context,
-                      applicationName: 'AniMobile',
-                      applicationVersion: 'v${UpdateService.currentVersion}',
-                      applicationIcon: const Icon(Icons.movie_filter_rounded,
-                          size: 40, color: AppColors.accent),
-                      applicationLegalese:
-                          'Lisensi: GNU General Public License v3.0 (GPLv3)\n\n'
-                          'Karya turunan dari proyek open-source pystardust/ani-cli.\n'
-                          'Hak Cipta (C) 2021-2024 pystardust dan kontributor.\n'
-                          'Hak Cipta (C) 2024-2026 Pengembang Mobile.\n\n'
-                          'Seluruh kode sumber bebas digunakan, dimodifikasi, dan didistribusikan ulang sesuai dengan ketentuan GNU General Public License v3.0.',
-                    );
-                  },
                 ),
-              ],
-            ),
+                title: const Text(
+                  'Server Pemutar HD-1 CDN Aktif',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Streaming tanpa buffering dengan kualitas 1080p super cepat.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -219,155 +133,385 @@ class _ProfileTabState extends State<ProfileTab>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      appBar: AppBar(
-        title: const Text(
-          'Profil Saya',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.4,
-          ),
-        ),
-        actions: [
-          if (_tabController.index == 0 && _history.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.delete_sweep_rounded, color: AppColors.textSecondary),
-              tooltip: 'Hapus Semua Riwayat',
-              onPressed: _clearAllHistory,
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          children: [
+            const SizedBox(height: 10),
+
+            // 1. User Profile Header (Exact match to Screenshot 2)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Left Info: Username, Emojis, Stats
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Username "MonaKawai"
+                      const Text(
+                        'MonaKawai',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+
+                      // Emoji badges: 🕶️ 👓 🏎️
+                      Row(
+                        children: const [
+                          Text('🕶️', style: TextStyle(fontSize: 16)),
+                          SizedBox(width: 8),
+                          Text('👓', style: TextStyle(fontSize: 16)),
+                          SizedBox(width: 8),
+                          Text('🏎️', style: TextStyle(fontSize: 16)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Stat row: 👁 3 intip  ❤️ 1 lope  🧩 0 contrib  📅 2026 february
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 6,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.remove_red_eye_rounded,
+                                  size: 14, color: Color(0xFF4EE2EC)),
+                              SizedBox(width: 4),
+                              Text(
+                                '3 intip',
+                                style: TextStyle(
+                                  color: Color(0xFF4EE2EC),
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.favorite_rounded,
+                                  size: 14, color: Color(0xFFFF5277)),
+                              SizedBox(width: 4),
+                              Text(
+                                '1 lope',
+                                style: TextStyle(
+                                  color: Color(0xFFFF5277),
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.extension_rounded,
+                                  size: 14, color: Color(0xFF75E063)),
+                              SizedBox(width: 4),
+                              Text(
+                                '0 contrib',
+                                style: TextStyle(
+                                  color: Color(0xFF75E063),
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.calendar_today_rounded,
+                                  size: 13, color: Color(0xFF4EE2EC)),
+                              SizedBox(width: 4),
+                              Text(
+                                '2026 february',
+                                style: TextStyle(
+                                  color: Color(0xFF4EE2EC),
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Right Avatars: Orange Howling Wolf Circle + Floating Ditto
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // Glowing wolf howling logo circle (matching screenshot 2)
+                    Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFE56338),
+                          width: 2.8,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFE56338).withValues(alpha: 0.25),
+                            blurRadius: 16,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: CustomPaint(
+                          painter: _WolfSilhouettePainter(),
+                          child: const SizedBox.expand(),
+                        ),
+                      ),
+                    ),
+
+                    // Cute floating Ditto Pokemon on right edge
+                    Positioned(
+                      right: -36,
+                      top: 24,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF141722),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF282C3D)),
+                        ),
+                        child: const Text('👾', style: TextStyle(fontSize: 18)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: AppColors.textSecondary),
-            tooltip: 'Pengaturan & Informasi',
-            onPressed: _showSettingsMenu,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // User Card Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.border),
+            const SizedBox(height: 24),
+
+            // 2. Currency Capsule: 🟡 6225C | 0G 🔶 (matching screenshot 2)
+            Center(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF12141D),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0xFF202330), width: 1.2),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Pikachu Coin 6225C
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFACC15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: Text(
+                          '⚡',
+                          style: TextStyle(fontSize: 15),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      '6225C',
+                      style: TextStyle(
+                        color: Color(0xFFFACC15),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(width: 36),
+
+                    // 0G Diamond Crystal
+                    const Text(
+                      '0G',
+                      style: TextStyle(
+                        color: Color(0xFFE56338),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(
+                      Icons.diamond_rounded,
+                      color: Color(0xFFFACC15),
+                      size: 20,
+                    ),
+                  ],
+                ),
               ),
+            ),
+            const SizedBox(height: 32),
+
+            // 3. 4 Action Buttons: FAVORIT, RIWAYAT, NOTIF, SETUP (matching screenshot 2)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildActionButton(
+                  iconWidget: const Icon(Icons.star_rounded,
+                      color: Color(0xFFFACC15), size: 30),
+                  label: 'FAVORIT',
+                  badgeCount: _bookmarkCount > 0 ? '$_bookmarkCount' : null,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const FavoriteScreen(),
+                      ),
+                    ).then((_) => _loadStats());
+                  },
+                ),
+                _buildActionButton(
+                  iconWidget: const Icon(Icons.access_time_filled_rounded,
+                      color: Color(0xFFFF5277), size: 28),
+                  label: 'RIWAYAT',
+                  badgeCount: _historyCount > 0 ? '$_historyCount' : null,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const HistoryScreen(),
+                      ),
+                    ).then((_) => _loadStats());
+                  },
+                ),
+                _buildActionButton(
+                  iconWidget: const Icon(Icons.notifications_rounded,
+                      color: Color(0xFFE56338), size: 28),
+                  label: 'NOTIF',
+                  onTap: _showNotificationSheet,
+                ),
+                _buildActionButton(
+                  iconWidget: const Icon(Icons.settings_rounded,
+                      color: Color(0xFF4EE2EC), size: 28),
+                  label: 'SETUP',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SettingsTab(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 36),
+
+            // 4. Quick Preview Section: Anime Terakhir Ditonton
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(
                 children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: AppColors.accentMuted,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.accent, width: 2),
+                  const Text(
+                    'Riwayat Terbaru',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
                     ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.person_rounded,
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const HistoryScreen(),
+                        ),
+                      ).then((_) => _loadStats());
+                    },
+                    child: const Text(
+                      'Lihat Semua >',
+                      style: TextStyle(
                         color: AppColors.accent,
-                        size: 30,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Penonton Santai',
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          '${_history.length} Anime Ditonton • ${_bookmarks.length} Favorit',
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),
-          ),
+            const SizedBox(height: 12),
 
-          // Segmented Tabs: [ Riwayat Nonton ] | [ Favorit Saya ]
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: Container(
-              height: 44,
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
+            _buildRecentHistoryList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required Widget iconWidget,
+    required String label,
+    required VoidCallback onTap,
+    String? badgeCount,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 66,
+                height: 66,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141824),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFF222638), width: 1.2),
+                ),
+                child: Center(child: iconWidget),
               ),
-              child: TabBar(
-                controller: _tabController,
-                indicator: BoxDecoration(
-                  color: AppColors.accent,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                labelColor: Colors.white,
-                unselectedLabelColor: AppColors.textSecondary,
-                labelStyle: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.2,
-                ),
-                unselectedLabelStyle: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-                tabs: [
-                  Tab(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.history_rounded, size: 16),
-                        const SizedBox(width: 6),
-                        Text('Riwayat (${_history.length})'),
-                      ],
+              if (badgeCount != null)
+                Positioned(
+                  top: -4,
+                  right: -4,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      badgeCount,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
-                  Tab(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.bookmark_rounded, size: 16),
-                        const SizedBox(width: 6),
-                        Text('Favorit (${_bookmarks.length})'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                ),
+            ],
           ),
-
-          // Tab Content
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                // 1. Riwayat Nonton Tab (Strictly Per Anime)
-                _buildHistoryTab(),
-
-                // 2. Favorit Saya Tab (With watched progress indicator)
-                _buildBookmarksTab(),
-              ],
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -375,138 +519,118 @@ class _ProfileTabState extends State<ProfileTab>
     );
   }
 
-  Widget _buildHistoryTab() {
-    if (_history.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: const Icon(
-                  Icons.history_rounded,
-                  size: 36,
-                  color: AppColors.textMuted,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Belum Ada Riwayat Nonton',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Anime yang Anda tonton akan otomatis tercatat per-anime di sini lengkap dengan episode terakhir yang ditonton.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                  height: 1.4,
-                ),
-              ),
-            ],
+  Widget _buildRecentHistoryList() {
+    final history = StorageService.getHistory();
+    if (history.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF12141D),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF1E212E)),
+        ),
+        child: const Center(
+          child: Text(
+            'Belum ada riwayat tontonan. Tonton anime untuk melihat riwayat di sini!',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
           ),
         ),
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      itemCount: _history.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final item = _history[index];
-        return AnimeHistoryCard(
-          item: item,
-          onRefresh: _loadData,
-          onDelete: () => _deleteSingleHistory(item),
-        );
-      },
-    );
-  }
-
-  Widget _buildBookmarksTab() {
-    if (_bookmarks.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+    return Column(
+      children: history.take(3).map((item) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF12141D),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF1E212E)),
+          ),
+          child: Row(
             children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: const Icon(
-                  Icons.bookmark_outline_rounded,
-                  size: 36,
-                  color: AppColors.favYellow,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: item.animePoster.isNotEmpty
+                      ? Image.network(item.animePoster, fit: BoxFit.cover)
+                      : Container(color: AppColors.surfaceMuted),
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Belum Ada Anime Favorit',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.animeTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Terakhir: Episode ${item.episodeNumber}',
+                      style: const TextStyle(
+                        color: AppColors.accent,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 6),
-              const Text(
-                'Tandai anime favorit Anda dengan menekan ikon simpan (bookmark) di halaman detail anime agar mudah ditemukan kembali.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                  height: 1.4,
-                ),
-              ),
+              const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textMuted, size: 20),
             ],
           ),
-        ),
-      );
-    }
-
-    return GridView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.65,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 14,
-      ),
-      itemCount: _bookmarks.length,
-      itemBuilder: (context, index) {
-        final anime = _bookmarks[index];
-        return AnimeCard(
-          anime: anime,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => AnimeDetailScreen(anime: anime),
-              ),
-            ).then((_) => _loadData());
-          },
         );
-      },
+      }).toList(),
     );
   }
+}
+
+/// Custom painter for Howling Wolf Silhouette inside orange glowing circle (matching screenshot 2)
+class _WolfSilhouettePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFE56338)
+      ..style = PaintingStyle.fill;
+
+    // Stylized howling wolf head path
+    final path = Path();
+    final w = size.width;
+    final h = size.height;
+
+    // Base point at bottom center
+    path.moveTo(w * 0.25, h * 0.95);
+    // Neck back line
+    path.cubicTo(w * 0.20, h * 0.70, w * 0.28, h * 0.45, w * 0.38, h * 0.30);
+    // Ear tip
+    path.lineTo(w * 0.45, h * 0.14);
+    path.lineTo(w * 0.52, h * 0.28);
+    // Forehead and snout pointing up-right
+    path.lineTo(w * 0.62, h * 0.32);
+    path.lineTo(w * 0.78, h * 0.26); // Nose tip
+    // Mouth
+    path.lineTo(w * 0.70, h * 0.38);
+    path.lineTo(w * 0.65, h * 0.42);
+    // Chin and throat
+    path.cubicTo(w * 0.62, h * 0.55, w * 0.55, h * 0.75, w * 0.68, h * 0.95);
+    path.close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
