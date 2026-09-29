@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'chat_tab.dart';
 import 'explore_tab.dart';
-import 'library_tab.dart';
-import 'settings_tab.dart';
+import 'home_tab.dart';
+import 'profile_tab.dart';
+import 'schedule_tab.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,9 +23,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final List<Widget> tabs = [
+      HomeTab(onNavigateTab: _onTabTapped),
+      const ScheduleTab(),
       const ExploreTab(),
-      LibraryTab(onNavigateToExplore: () => _onTabTapped(0)),
-      const SettingsTab(),
+      const ChatTab(),
+      const ProfileTab(),
     ];
 
     return Scaffold(
@@ -33,31 +37,86 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: AppColors.border, width: 1)),
+          color: AppColors.navBackground,
+          border: Border(
+            top: BorderSide(color: Color(0xFF1E2028), width: 1),
+          ),
         ),
-        child: NavigationBar(
-          selectedIndex: _currentIndex,
-          onDestinationSelected: _onTabTapped,
-          backgroundColor: AppColors.surface,
-          indicatorColor: AppColors.accentMuted,
-          height: 68,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.explore_outlined, color: AppColors.textSecondary),
-              selectedIcon: Icon(Icons.explore, color: AppColors.accent),
-              label: 'Jelajah',
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: 62,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavItem(
+                  index: 0,
+                  icon: Icons.home_rounded,
+                  activeIcon: Icons.home_filled,
+                  label: 'HOME',
+                ),
+                _buildNavItem(
+                  index: 1,
+                  icon: Icons.calendar_month_outlined,
+                  activeIcon: Icons.calendar_month_rounded,
+                  label: 'JADWAL',
+                ),
+                _buildNavItem(
+                  index: 2,
+                  icon: Icons.search_rounded,
+                  activeIcon: Icons.search_rounded,
+                  label: 'CARI',
+                ),
+                _buildNavItem(
+                  index: 3,
+                  icon: Icons.near_me_outlined,
+                  activeIcon: Icons.near_me_rounded,
+                  label: 'CHAT',
+                ),
+                _buildNavItem(
+                  index: 4,
+                  icon: Icons.account_circle_outlined,
+                  activeIcon: Icons.account_circle_rounded,
+                  label: 'PROFILE',
+                ),
+              ],
             ),
-            NavigationDestination(
-              icon: Icon(Icons.video_library_outlined,
-                  color: AppColors.textSecondary),
-              selectedIcon:
-                  Icon(Icons.video_library, color: AppColors.accent),
-              label: 'Koleksi',
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required int index,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+  }) {
+    final isSelected = _currentIndex == index;
+
+    return Expanded(
+      child: InkWell(
+        onTap: () => _onTabTapped(index),
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isSelected ? activeIcon : icon,
+              color: isSelected ? AppColors.accent : AppColors.navUnselected,
+              size: 24,
             ),
-            NavigationDestination(
-              icon: Icon(Icons.settings_outlined, color: AppColors.textSecondary),
-              selectedIcon: Icon(Icons.settings, color: AppColors.accent),
-              label: 'Pengaturan',
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? AppColors.accent : AppColors.navUnselected,
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                letterSpacing: 0.2,
+              ),
             ),
           ],
         ),

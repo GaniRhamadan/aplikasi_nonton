@@ -762,4 +762,369 @@ class AnimeService {
         .replaceAll('&lt;', '<')
         .replaceAll('&gt;', '>');
   }
+
+  /// 1. Sedang Hangat (Trending Spotlight Banners)
+  Future<List<AnimeItem>> getSedangHangat() async {
+    return const [
+      AnimeItem(
+        id: '1',
+        slug: 'one-piece-1',
+        title: 'One Piece',
+        genreLabel: 'Action, Adventure, Comedy',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/6/73245.jpg',
+        bannerUrl: 'https://images4.alphacoders.com/132/1324869.png',
+        views: '15.747.141 views',
+        favorites: '38.427 favorites',
+        subEpisodes: 1122,
+        totalEpisodes: 1122,
+      ),
+      AnimeItem(
+        id: '84',
+        slug: 'solo-leveling-season-2-arise-from-the-shadow-84',
+        title: 'Solo Leveling Season 2',
+        genreLabel: 'Action, Fantasy',
+        posterUrl:
+            'https://cdn.anipixcdn.co/thumbnail/53adb96c287c3931b3bc41cebb003788.png',
+        bannerUrl: 'https://images8.alphacoders.com/134/1349544.jpeg',
+        views: '12.894.210 views',
+        favorites: '34.120 favorites',
+        subEpisodes: 13,
+        totalEpisodes: 13,
+      ),
+      AnimeItem(
+        id: '5',
+        slug: 'bleach-thousand-year-blood-war-the-calamity-5',
+        title: 'Bleach: Thousand-Year Blood War',
+        genreLabel: 'Action, Supernatural',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1764/126627.jpg',
+        bannerUrl: 'https://images3.alphacoders.com/128/1286392.jpg',
+        views: '9.450.219 views',
+        favorites: '29.810 favorites',
+        subEpisodes: 26,
+        totalEpisodes: 26,
+      ),
+      AnimeItem(
+        id: '415',
+        slug: 'jujutsu-kaisen-season-2-415',
+        title: 'Jujutsu Kaisen 2nd Season',
+        genreLabel: 'Action, Supernatural',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1170/124305.jpg',
+        bannerUrl: 'https://images5.alphacoders.com/133/1338600.png',
+        views: '14.215.890 views',
+        favorites: '36.520 favorites',
+        subEpisodes: 23,
+        totalEpisodes: 23,
+      ),
+    ];
+  }
+
+  /// 2. Lanjut Nonton (Continue Watching list)
+  Future<List<AnimeItem>> getLanjutNonton() async {
+    return const [
+      AnimeItem(
+        id: '4990',
+        slug: 'the-ice-guy-and-his-cool-female-colleague-4990',
+        title: 'Koori Zokusei Danshi to Cool na Douryou',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1480/129780.jpg',
+        episodeLabel: 'Episode 4',
+        views: '58.115 views',
+        favorites: '8.571 favorites',
+        subEpisodes: 12,
+      ),
+      AnimeItem(
+        id: '6512',
+        slug: 'sora-no-manimani-6512',
+        title: 'Sora no Manimani (At the Mercy of the Sky)',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/13/14589.jpg',
+        episodeLabel: 'Episode 12',
+        views: '7.123 views',
+        favorites: '1.589 favorites',
+        subEpisodes: 12,
+      ),
+      AnimeItem(
+        id: '49520',
+        slug: 'aharen-san-wa-hakarenai-49520',
+        title: 'Aharen-san wa Hakarenai',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1628/120689.jpg',
+        episodeLabel: 'Episode 1',
+        views: '245 views',
+        favorites: '163 favorites',
+        subEpisodes: 12,
+      ),
+    ];
+  }
+
+  /// 3. Cuplix Story Avatars (matching Screenshot 1)
+  List<CuplixItem> getCuplixItems() {
+    return const [
+      CuplixItem(
+        id: 'c1',
+        title: 'Koori Zokusei',
+        imageUrl: 'https://cdn.myanimelist.net/images/characters/11/382092.jpg',
+        animeSlug: 'the-ice-guy-and-his-cool-female-colleague-4990',
+      ),
+      CuplixItem(
+        id: 'c2',
+        title: 'Romance Moment',
+        imageUrl: 'https://cdn.myanimelist.net/images/characters/14/434691.jpg',
+        animeSlug: 'sora-no-manimani-6512',
+      ),
+      CuplixItem(
+        id: 'c3',
+        title: 'Cozy Room',
+        imageUrl: 'https://cdn.myanimelist.net/images/characters/2/411899.jpg',
+        animeSlug: 'aharen-san-wa-hakarenai-49520',
+      ),
+      CuplixItem(
+        id: 'c4',
+        title: 'Fighter',
+        imageUrl: 'https://cdn.myanimelist.net/images/characters/7/492576.jpg',
+        animeSlug: 'one-piece-1',
+      ),
+      CuplixItem(
+        id: 'c5',
+        title: 'Demon Lord',
+        imageUrl: 'https://cdn.myanimelist.net/images/characters/16/329598.jpg',
+        animeSlug: 'solo-leveling-season-2-arise-from-the-shadow-84',
+      ),
+      CuplixItem(
+        id: 'c6',
+        title: 'Hero Climax',
+        imageUrl: 'https://cdn.myanimelist.net/images/characters/9/335805.jpg',
+        animeSlug: 'bleach-thousand-year-blood-war-the-calamity-5',
+      ),
+    ];
+  }
+
+  /// 4. Episode Baru (New Episodes matching Screenshot 1 & 2)
+  Future<List<AnimeItem>> getEpisodeBaru() async {
+    try {
+      final url = Uri.parse('$baseApi/recently-updated');
+      final res = await http.get(url, headers: defaultHeaders).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final live = _parseSearchHtml(res.body);
+        if (live.isNotEmpty) {
+          return live.take(12).map((item) {
+            return item.copyWith(
+              episodeLabel: 'Episode ${item.subEpisodes > 0 ? item.subEpisodes : 1}',
+            );
+          }).toList();
+        }
+      }
+    } catch (_) {}
+
+    return const [
+      AnimeItem(
+        id: '20381',
+        slug: 'lian-qi-shi-wan-nian-20381',
+        title: 'Lian Qi Shi Wan Nian',
+        genreLabel: 'Action',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1544/133989.jpg',
+        episodeLabel: 'Episode 381',
+        views: '142.113 views',
+        favorites: '1.729 favorites',
+      ),
+      AnimeItem(
+        id: '18487',
+        slug: 'wan-jie-du-zun-18487',
+        title: 'Wan Jie Du Zun',
+        genreLabel: 'Action',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1305/115426.jpg',
+        episodeLabel: 'Episode 487',
+        views: '51.763 views',
+        favorites: '1.040 favorites',
+      ),
+      AnimeItem(
+        id: '16695',
+        slug: 'wushen-zhuzai-16695',
+        title: 'Wushen Zhuzai (The God of War Dominates)',
+        genreLabel: 'Action',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1911/111831.jpg',
+        episodeLabel: 'Episode 695',
+        views: '76.489 views',
+        favorites: '1.392 favorites',
+      ),
+      AnimeItem(
+        id: '1',
+        slug: 'one-piece-1',
+        title: 'One Piece',
+        genreLabel: 'Action',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/6/73245.jpg',
+        episodeLabel: 'Episode 1122',
+        views: '15.747.141 views',
+        favorites: '38.427 favorites',
+      ),
+    ];
+  }
+
+  /// 5. Jadwal Hari ini (matching Screenshot 2 with new !! badge)
+  Future<List<AnimeItem>> getJadwalHariIni() async {
+    try {
+      final url = Uri.parse('$baseApi/top-airing');
+      final res = await http.get(url, headers: defaultHeaders).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final live = _parseSearchHtml(res.body);
+        if (live.isNotEmpty) {
+          return live.take(10).map((i) => i.copyWith(isNew: true)).toList();
+        }
+      }
+    } catch (_) {}
+
+    return const [
+      AnimeItem(
+        id: '20381',
+        slug: 'lian-qi-shi-wan-nian-20381',
+        title: 'Lian Qi Shi Wan Nian',
+        genreLabel: 'Action',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1544/133989.jpg',
+        views: '142.113 views',
+        favorites: '1.729 favorites',
+        isNew: true,
+      ),
+      AnimeItem(
+        id: '18487',
+        slug: 'wan-jie-du-zun-18487',
+        title: 'Wan Jie Du Zun',
+        genreLabel: 'Action',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1305/115426.jpg',
+        views: '51.763 views',
+        favorites: '1.040 favorites',
+        isNew: true,
+      ),
+      AnimeItem(
+        id: '16695',
+        slug: 'wushen-zhuzai-16695',
+        title: 'Wushen Zhuzai',
+        genreLabel: 'Action',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1911/111831.jpg',
+        views: '76.489 views',
+        favorites: '1.392 favorites',
+        isNew: true,
+      ),
+    ];
+  }
+
+  /// 6. Jas Por Yu (Featured Just For You banner + card matching Screenshot 2)
+  Future<AnimeItem> getJasPorYu() async {
+    return const AnimeItem(
+      id: '49900',
+      slug: 'digimon-ghost-game-49900',
+      title: 'Digimon Ghost Game',
+      genreLabel: 'Action, Adventure, Comedy',
+      posterUrl: 'https://cdn.myanimelist.net/images/anime/1169/117849.jpg',
+      bannerUrl: 'https://images4.alphacoders.com/120/1206124.jpg',
+      views: '8.203 views',
+      favorites: '432 favorites',
+      subEpisodes: 67,
+      totalEpisodes: 67,
+    );
+  }
+
+  /// 7. Judul Baru (New Titles matching Screenshot 4 with Release Date)
+  Future<List<AnimeItem>> getJudulBaru() async {
+    return const [
+      AnimeItem(
+        id: '58120',
+        slug: 'ghost-meets-gal-58120',
+        title: 'Ghost Meets Gal!',
+        genreLabel: 'Music',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1898/143532.jpg',
+        releaseDate: '2026-10-05',
+        favorites: '40 favorites',
+      ),
+      AnimeItem(
+        id: '58121',
+        slug: 'dark-machine-the-animation-58121',
+        title: 'Dark Machine: The Animation',
+        genreLabel: 'Mecha',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1500/144675.jpg',
+        releaseDate: '2026-10-14',
+        favorites: '15 favorites',
+      ),
+      AnimeItem(
+        id: '58122',
+        slug: 'keroro-gunsou-58122',
+        title: 'Keroro Gunsou☆',
+        genreLabel: 'Comedy',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1769/143940.jpg',
+        releaseDate: '2026-10-03',
+        favorites: '10 favorites',
+      ),
+    ];
+  }
+
+  /// 8. Paling Dinanti (Most Anticipated matching Screenshot 3)
+  Future<List<AnimeItem>> getPalingDinanti() async {
+    return const [
+      AnimeItem(
+        id: '54321',
+        slug: 'isekai-munchkin-hp-1-54321',
+        title: 'Isekai Munchkin: HP 1 no Mama de Saikyou',
+        genreLabel: 'Action',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1722/142998.jpg',
+        releaseDate: '2026-10-??',
+        favorites: '12.203 favorites',
+      ),
+      AnimeItem(
+        id: '34572',
+        slug: 'black-clover-2nd-season-34572',
+        title: 'Black Clover 2nd Season',
+        genreLabel: 'Action',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/2/88339.jpg',
+        releaseDate: '2026-10-03',
+        favorites: '6.662 favorites',
+      ),
+      AnimeItem(
+        id: '54492',
+        slug: 'kusuriya-no-hitorigoto-3rd-season-54492',
+        title: 'Kusuriya no Hitorigoto 3rd Season',
+        genreLabel: 'Drama',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1708/138033.jpg',
+        releaseDate: '2026-10-02',
+        favorites: '4.925 favorites',
+      ),
+    ];
+  }
+
+  /// 9. Paling Populer (All Time / Season Most Popular matching Screenshot 3)
+  Future<List<AnimeItem>> getPalingPopuler() async {
+    try {
+      final url = Uri.parse('$baseApi/most-popular');
+      final res = await http.get(url, headers: defaultHeaders).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final live = _parseSearchHtml(res.body);
+        if (live.isNotEmpty) return live;
+      }
+    } catch (_) {}
+
+    return const [
+      AnimeItem(
+        id: '1',
+        slug: 'one-piece-1',
+        title: 'One Piece',
+        genreLabel: 'Action',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/6/73245.jpg',
+        views: '15.747.141 views',
+        favorites: '38.427 favorites',
+      ),
+      AnimeItem(
+        id: '34572',
+        slug: 'black-clover-34572',
+        title: 'Black Clover',
+        genreLabel: 'Action',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/2/88339.jpg',
+        views: '5.861.293 views',
+        favorites: '28.640 favorites',
+      ),
+      AnimeItem(
+        id: '84',
+        slug: 'solo-leveling-season-2-arise-from-the-shadow-84',
+        title: 'Ore dake Level Up na Ken (Solo Leveling)',
+        genreLabel: 'Action',
+        posterUrl: 'https://cdn.myanimelist.net/images/anime/1815/141351.jpg',
+        views: '2.020.067 views',
+        favorites: '28.445 favorites',
+      ),
+    ];
+  }
 }

@@ -8,14 +8,14 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await StorageService.init();
 
-  // Set system navigation & status bar style
+  // Set system navigation & status bar style for immersive dark theme
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarColor: AppColors.surface,
-      systemNavigationBarIconBrightness: Brightness.dark,
-      systemNavigationBarDividerColor: AppColors.border,
+      statusBarIconBrightness: Brightness.light, // White status icons
+      systemNavigationBarColor: AppColors.navBackground,
+      systemNavigationBarIconBrightness: Brightness.light,
+      systemNavigationBarDividerColor: Colors.transparent,
     ),
   );
 
@@ -30,7 +30,7 @@ class AniMobileApp extends StatelessWidget {
     return MaterialApp(
       title: 'AniMobile',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
+      theme: AppTheme.darkTheme,
       home: const HomeScreen(),
     );
   }

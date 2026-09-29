@@ -6,9 +6,9 @@ import '../widgets/anime_card.dart';
 import 'player_screen.dart';
 
 class LibraryTab extends StatefulWidget {
-  final VoidCallback onNavigateToExplore;
+  final VoidCallback? onNavigateToExplore;
 
-  const LibraryTab({super.key, required this.onNavigateToExplore});
+  const LibraryTab({super.key, this.onNavigateToExplore});
 
   @override
   State<LibraryTab> createState() => _LibraryTabState();

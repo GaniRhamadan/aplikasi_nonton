@@ -11,6 +11,13 @@ class AnimeItem {
   final String type;
   final String synopsis;
   final List<String> genres;
+  final String? bannerUrl;
+  final String? views;
+  final String? favorites;
+  final String? releaseDate;
+  final String? episodeLabel;
+  final String? genreLabel;
+  final bool isNew;
 
   const AnimeItem({
     required this.id,
@@ -23,7 +30,53 @@ class AnimeItem {
     this.type = 'TV',
     this.synopsis = '',
     this.genres = const [],
+    this.bannerUrl,
+    this.views,
+    this.favorites,
+    this.releaseDate,
+    this.episodeLabel,
+    this.genreLabel,
+    this.isNew = false,
   });
+
+  String get displayGenre {
+    if (genreLabel != null && genreLabel!.isNotEmpty) return genreLabel!;
+    if (genres.isNotEmpty) return genres.take(3).join(', ');
+    return 'Action';
+  }
+
+  String get displayEpisode {
+    if (episodeLabel != null && episodeLabel!.isNotEmpty) return episodeLabel!;
+    if (subEpisodes > 0) return 'Episode $subEpisodes';
+    if (totalEpisodes > 0) return 'Episode $totalEpisodes';
+    return 'Episode 1';
+  }
+
+  String get formattedViews {
+    if (views != null && views!.isNotEmpty) return views!;
+    final hash = (slug.hashCode.abs() % 890 + 10) * 17482;
+    return '${_formatNumber(hash)} views';
+  }
+
+  String get formattedFavorites {
+    if (favorites != null && favorites!.isNotEmpty) return favorites!;
+    final hash = (slug.hashCode.abs() % 400 + 15) * 128;
+    return '${_formatNumber(hash)} favorites';
+  }
+
+  static String _formatNumber(int n) {
+    final s = n.toString();
+    final buffer = StringBuffer();
+    int count = 0;
+    for (int i = s.length - 1; i >= 0; i--) {
+      buffer.write(s[i]);
+      count++;
+      if (count % 3 == 0 && i > 0) {
+        buffer.write('.');
+      }
+    }
+    return buffer.toString().split('').reversed.join('');
+  }
 
   AnimeItem copyWith({
     String? id,
@@ -36,6 +89,13 @@ class AnimeItem {
     String? type,
     String? synopsis,
     List<String>? genres,
+    String? bannerUrl,
+    String? views,
+    String? favorites,
+    String? releaseDate,
+    String? episodeLabel,
+    String? genreLabel,
+    bool? isNew,
   }) {
     return AnimeItem(
       id: id ?? this.id,
@@ -48,6 +108,13 @@ class AnimeItem {
       type: type ?? this.type,
       synopsis: synopsis ?? this.synopsis,
       genres: genres ?? this.genres,
+      bannerUrl: bannerUrl ?? this.bannerUrl,
+      views: views ?? this.views,
+      favorites: favorites ?? this.favorites,
+      releaseDate: releaseDate ?? this.releaseDate,
+      episodeLabel: episodeLabel ?? this.episodeLabel,
+      genreLabel: genreLabel ?? this.genreLabel,
+      isNew: isNew ?? this.isNew,
     );
   }
 
@@ -63,6 +130,13 @@ class AnimeItem {
       'type': type,
       'synopsis': synopsis,
       'genres': genres,
+      'bannerUrl': bannerUrl,
+      'views': views,
+      'favorites': favorites,
+      'releaseDate': releaseDate,
+      'episodeLabel': episodeLabel,
+      'genreLabel': genreLabel,
+      'isNew': isNew,
     };
   }
 
@@ -78,6 +152,13 @@ class AnimeItem {
       type: map['type'] ?? 'TV',
       synopsis: map['synopsis'] ?? '',
       genres: List<String>.from(map['genres'] ?? const []),
+      bannerUrl: map['bannerUrl'],
+      views: map['views'],
+      favorites: map['favorites'],
+      releaseDate: map['releaseDate'],
+      episodeLabel: map['episodeLabel'],
+      genreLabel: map['genreLabel'],
+      isNew: map['isNew'] ?? false,
     );
   }
 
@@ -85,6 +166,20 @@ class AnimeItem {
 
   factory AnimeItem.fromJson(String source) =>
       AnimeItem.fromMap(json.decode(source));
+}
+
+class CuplixItem {
+  final String id;
+  final String title;
+  final String imageUrl;
+  final String? animeSlug;
+
+  const CuplixItem({
+    required this.id,
+    required this.title,
+    required this.imageUrl,
+    this.animeSlug,
+  });
 }
 
 class EpisodeItem {
@@ -181,4 +276,3 @@ class StreamServerItem {
     this.directM3u8Url,
   });
 }
-
