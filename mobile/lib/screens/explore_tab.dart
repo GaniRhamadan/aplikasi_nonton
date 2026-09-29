@@ -555,7 +555,7 @@ class _ExploreTabState extends State<ExploreTab> {
                             label: Text(
                               hasCount
                                   ? 'Filter Genre (${_selectedGenreSlugs.length})'
-                                  : 'Pilih Multi-Genre (42+)',
+                                  : 'Pilih Multi-Genre (93 Genre)',
                             ),
                             style: OutlinedButton.styleFrom(
                               minimumSize: const Size(120, 38),
