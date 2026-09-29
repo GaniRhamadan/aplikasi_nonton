@@ -91,6 +91,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _directM3u8Url = null;
     });
 
+    final totalEps = widget.anime.totalEpisodes > 0
+        ? widget.anime.totalEpisodes
+        : (widget.anime.subEpisodes > 0
+            ? widget.anime.subEpisodes
+            : _allEpisodes.length);
+
     await StorageService.saveHistory(
       WatchHistoryItem(
         animeId: widget.anime.id,
@@ -100,7 +106,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
         episodeNumber: episode.number,
         episodeTitle: episode.title,
         timestamp: DateTime.now().millisecondsSinceEpoch,
+        totalEpisodes: totalEps,
+        watchedEpisodes: [episode.number],
       ),
+      totalEpisodes: totalEps,
     );
 
     String epId = episode.id;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/anime_models.dart';
 import '../services/anime_service.dart';
+import '../services/storage_service.dart';
 import '../services/update_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/anime_home_widgets.dart';
@@ -73,9 +74,24 @@ class _HomeTabState extends State<HomeTab> {
       ]);
 
       if (mounted) {
+        final history = StorageService.getHistory();
+        List<AnimeItem> continueList;
+        if (history.isNotEmpty) {
+          continueList = history.map((h) => AnimeItem(
+            id: h.animeId,
+            slug: h.animeSlug,
+            title: h.animeTitle,
+            posterUrl: h.animePoster,
+            totalEpisodes: h.totalEpisodes,
+            episodeLabel: 'Sampai Ep. ${h.episodeNumber}',
+          )).toList();
+        } else {
+          continueList = results[1] as List<AnimeItem>;
+        }
+
         setState(() {
           _sedangHangat = results[0] as List<AnimeItem>;
-          _lanjutNonton = results[1] as List<AnimeItem>;
+          _lanjutNonton = continueList;
           _cuplixItems = _animeService.getCuplixItems();
           _episodeBaru = results[2] as List<AnimeItem>;
           _jadwalHariIni = results[3] as List<AnimeItem>;

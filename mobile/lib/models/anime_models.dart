@@ -226,6 +226,8 @@ class WatchHistoryItem {
   final int episodeNumber;
   final String episodeTitle;
   final int timestamp;
+  final int totalEpisodes;
+  final List<int> watchedEpisodes;
 
   const WatchHistoryItem({
     required this.animeId,
@@ -235,6 +237,8 @@ class WatchHistoryItem {
     required this.episodeNumber,
     required this.episodeTitle,
     required this.timestamp,
+    this.totalEpisodes = 0,
+    this.watchedEpisodes = const [],
   });
 
   Map<String, dynamic> toMap() {
@@ -246,18 +250,32 @@ class WatchHistoryItem {
       'episodeNumber': episodeNumber,
       'episodeTitle': episodeTitle,
       'timestamp': timestamp,
+      'totalEpisodes': totalEpisodes,
+      'watchedEpisodes': watchedEpisodes,
     };
   }
 
   factory WatchHistoryItem.fromMap(Map<String, dynamic> map) {
+    final epNum = map['episodeNumber'] ?? 1;
+    List<int> watched = [];
+    if (map['watchedEpisodes'] != null) {
+      watched = (map['watchedEpisodes'] as List)
+          .map((e) => (e as num).toInt())
+          .toList();
+    }
+    if (!watched.contains(epNum)) {
+      watched.add(epNum);
+    }
     return WatchHistoryItem(
       animeId: map['animeId'] ?? '',
       animeSlug: map['animeSlug'] ?? '',
       animeTitle: map['animeTitle'] ?? '',
       animePoster: map['animePoster'] ?? '',
-      episodeNumber: map['episodeNumber'] ?? 1,
+      episodeNumber: epNum,
       episodeTitle: map['episodeTitle'] ?? '',
       timestamp: map['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
+      totalEpisodes: map['totalEpisodes'] ?? 0,
+      watchedEpisodes: watched,
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/anime_models.dart';
 import '../screens/anime_detail_screen.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 
 /// Section Header with White Title and Circular Dark Arrow Button (matching screenshots)
@@ -82,7 +83,10 @@ class AnimeVerticalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final subText = topSubtitle ?? anime.displayGenre;
+    final history = StorageService.getHistoryForAnime(anime.id, anime.slug);
+    final subText = history != null
+        ? 'Sampai Ep. ${history.episodeNumber}'
+        : (topSubtitle ?? anime.displayGenre);
 
     final content = InkWell(
         onTap: onTap ??
@@ -99,41 +103,108 @@ class AnimeVerticalCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Poster with rounded corners
+            // Poster with rounded corners & watch progress
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: Container(
                 width: 130,
                 height: 182,
                 color: AppColors.surfaceMuted,
-                child: anime.posterUrl.isNotEmpty
-                    ? Image.network(
-                        anime.posterUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
-                        loadingBuilder: (_, child, progress) {
-                          if (progress == null) return child;
-                          return Container(
-                            color: AppColors.surfaceMuted,
-                            child: const Center(
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.accent,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    anime.posterUrl.isNotEmpty
+                        ? Image.network(
+                            anime.posterUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _buildPlaceholder(),
+                            loadingBuilder: (_, child, progress) {
+                              if (progress == null) return child;
+                              return Container(
+                                color: AppColors.surfaceMuted,
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.accent,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : _buildPlaceholder(),
+
+                    // Watched badge
+                    if (history != null)
+                      Positioned(
+                        top: 6,
+                        left: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2.5),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent,
+                            borderRadius: BorderRadius.circular(4),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.6),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.play_circle_fill,
+                                  size: 10, color: Colors.white),
+                              const SizedBox(width: 3),
+                              Text(
+                                'Ep. ${history.episodeNumber}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
-                            ),
-                          );
-                        },
-                      )
-                    : _buildPlaceholder(),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                    // Watched progress bar
+                    if (history != null)
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          height: 3,
+                          color: Colors.black54,
+                          child: FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor: (anime.totalEpisodes > 0 ||
+                                    history.totalEpisodes > 0)
+                                ? (history.episodeNumber /
+                                        (anime.totalEpisodes > 0
+                                            ? anime.totalEpisodes
+                                            : history.totalEpisodes))
+                                    .clamp(0.08, 1.0)
+                                : 0.5,
+                            child: Container(color: AppColors.accent),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 6),
 
-            // Top subtitle (Orange, e.g. "Episode 4" or "Action")
+            // Top subtitle (Orange, e.g. "Episode 4" or "Action" or "Sampai Ep. X")
             Text(
               subText,
               maxLines: 1,

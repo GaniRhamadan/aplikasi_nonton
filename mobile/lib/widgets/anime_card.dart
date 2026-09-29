@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/anime_models.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../screens/anime_detail_screen.dart';
 
@@ -15,6 +16,8 @@ class AnimeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final history = StorageService.getHistoryForAnime(anime.id, anime.slug);
+
     return InkWell(
       onTap: onTap ??
           () {
@@ -30,7 +33,10 @@ class AnimeCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border, width: 1),
+          border: Border.all(
+            color: history != null ? AppColors.accent.withValues(alpha: 0.4) : AppColors.border,
+            width: 1,
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -65,6 +71,43 @@ class AnimeCard extends StatelessWidget {
                           },
                         )
                       : _buildPlaceholder(),
+
+                  // Top Watch Progress Badge (if watched)
+                  if (history != null)
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent,
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.play_circle_fill,
+                                size: 10, color: Colors.white),
+                            const SizedBox(width: 3),
+                            Text(
+                              'Sampai Ep. ${history.episodeNumber}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
 
                   // Episode count badges on bottom of image
                   Positioned(
@@ -127,13 +170,39 @@ class AnimeCard extends StatelessWidget {
                       ],
                     ),
                   ),
+
+                  // Bottom mini progress bar
+                  if (history != null)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        height: 3,
+                        color: Colors.black54,
+                        child: FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: (anime.totalEpisodes > 0 ||
+                                  history.totalEpisodes > 0)
+                              ? (history.episodeNumber /
+                                      (anime.totalEpisodes > 0
+                                          ? anime.totalEpisodes
+                                          : history.totalEpisodes))
+                                  .clamp(0.08, 1.0)
+                              : 0.5,
+                          child: Container(
+                            color: AppColors.accent,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
 
-            // Anime Title
+            // Anime Title & Subtitle
             Padding(
-              padding: const EdgeInsets.all(10.0),
+              padding: const EdgeInsets.all(9.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -143,20 +212,41 @@ class AnimeCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppColors.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
                       height: 1.25,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    anime.type,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
+                  const SizedBox(height: 3),
+                  if (history != null)
+                    Row(
+                      children: [
+                        const Icon(Icons.history_rounded,
+                            size: 11, color: AppColors.accent),
+                        const SizedBox(width: 3),
+                        Expanded(
+                          child: Text(
+                            'Sampai Ep. ${history.episodeNumber}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.accent,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Text(
+                      anime.type,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

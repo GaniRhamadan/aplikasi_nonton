@@ -15,24 +15,121 @@ class StorageService {
     _prefs ??= await SharedPreferences.getInstance();
   }
 
-  // --- Watch History ---
+  // --- Watch History (Strictly per-anime) ---
   static List<WatchHistoryItem> getHistory() {
     final list = _prefs?.getStringList(_keyHistory) ?? [];
     return list.map((item) => WatchHistoryItem.fromJson(item)).toList();
   }
 
-  static Future<void> saveHistory(WatchHistoryItem item) async {
+  static Future<void> saveHistory(
+    WatchHistoryItem item, {
+    int? totalEpisodes,
+  }) async {
     final history = getHistory();
-    // Remove previous entry for this anime to avoid duplicates
-    history.removeWhere((h) => h.animeId == item.animeId || h.animeSlug == item.animeSlug);
-    // Insert at front (most recent)
-    history.insert(0, item);
 
-    // Keep max 50 items
+    // Check if anime already has a history record
+    final existingIndex = history.indexWhere((h) =>
+        (item.animeId.isNotEmpty && h.animeId == item.animeId) ||
+        (item.animeSlug.isNotEmpty && h.animeSlug == item.animeSlug) ||
+        (item.animeTitle.isNotEmpty &&
+            h.animeTitle.toLowerCase() == item.animeTitle.toLowerCase()));
+
+    List<int> mergedWatched = [];
+    int effectiveTotal = totalEpisodes ?? item.totalEpisodes;
+    String poster = item.animePoster;
+
+    if (existingIndex >= 0) {
+      final existing = history.removeAt(existingIndex);
+      mergedWatched = List<int>.from(existing.watchedEpisodes);
+      if (effectiveTotal <= 0 && existing.totalEpisodes > 0) {
+        effectiveTotal = existing.totalEpisodes;
+      }
+      if (poster.isEmpty && existing.animePoster.isNotEmpty) {
+        poster = existing.animePoster;
+      }
+    }
+
+    // Merge watched episode numbers
+    for (final ep in item.watchedEpisodes) {
+      if (!mergedWatched.contains(ep)) {
+        mergedWatched.add(ep);
+      }
+    }
+    if (!mergedWatched.contains(item.episodeNumber)) {
+      mergedWatched.add(item.episodeNumber);
+    }
+    mergedWatched.sort();
+
+    // Construct unified single per-anime history item
+    final unifiedItem = WatchHistoryItem(
+      animeId: item.animeId,
+      animeSlug: item.animeSlug,
+      animeTitle: item.animeTitle,
+      animePoster: poster,
+      episodeNumber: item.episodeNumber,
+      episodeTitle: item.episodeTitle,
+      timestamp: item.timestamp > 0
+          ? item.timestamp
+          : DateTime.now().millisecondsSinceEpoch,
+      totalEpisodes: effectiveTotal,
+      watchedEpisodes: mergedWatched,
+    );
+
+    // Insert at front (most recently watched anime)
+    history.insert(0, unifiedItem);
+
+    // Keep max 50 anime entries
     if (history.length > 50) {
       history.removeRange(50, history.length);
     }
 
+    final rawList = history.map((h) => h.toJson()).toList();
+    await _prefs?.setStringList(_keyHistory, rawList);
+  }
+
+  /// Get watch history item for a specific anime
+  static WatchHistoryItem? getHistoryForAnime(String animeId, String animeSlug) {
+    final history = getHistory();
+    try {
+      return history.firstWhere(
+        (h) =>
+            (animeId.isNotEmpty && h.animeId == animeId) ||
+            (animeSlug.isNotEmpty && h.animeSlug == animeSlug),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Get the last watched episode number for an anime (null if never watched)
+  static int? getLastWatchedEpisode(String animeId, String animeSlug) {
+    return getHistoryForAnime(animeId, animeSlug)?.episodeNumber;
+  }
+
+  /// Get all watched episode numbers for an anime
+  static Set<int> getWatchedEpisodes(String animeId, String animeSlug) {
+    final item = getHistoryForAnime(animeId, animeSlug);
+    if (item == null) return {};
+    return item.watchedEpisodes.toSet();
+  }
+
+  /// Check if a specific episode of an anime has been watched
+  static bool isEpisodeWatched(
+      String animeId, String animeSlug, int episodeNumber) {
+    final item = getHistoryForAnime(animeId, animeSlug);
+    if (item == null) return false;
+    return item.watchedEpisodes.contains(episodeNumber);
+  }
+
+  /// Remove a single anime from watch history
+  static Future<void> deleteHistoryItem(
+      String animeId, String animeSlug) async {
+    final history = getHistory();
+    history.removeWhere(
+      (h) =>
+          (animeId.isNotEmpty && h.animeId == animeId) ||
+          (animeSlug.isNotEmpty && h.animeSlug == animeSlug),
+    );
     final rawList = history.map((h) => h.toJson()).toList();
     await _prefs?.setStringList(_keyHistory, rawList);
   }

@@ -3,7 +3,7 @@ import '../models/anime_models.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/anime_card.dart';
-import 'player_screen.dart';
+import '../widgets/anime_history_card.dart';
 
 class LibraryTab extends StatefulWidget {
   final VoidCallback? onNavigateToExplore;
@@ -72,22 +72,6 @@ class _LibraryTabState extends State<LibraryTab>
     }
   }
 
-  String _formatTimestamp(int millis) {
-    final dt = DateTime.fromMillisecondsSinceEpoch(millis);
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-
-    if (diff.inMinutes < 60) {
-      return diff.inMinutes <= 1 ? 'Baru saja' : '${diff.inMinutes} mnt lalu';
-    } else if (diff.inHours < 24) {
-      return '${diff.inHours} jam lalu';
-    } else if (diff.inDays == 1) {
-      return 'Kemarin';
-    } else {
-      return '${dt.day}/${dt.month}/${dt.year}';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -148,116 +132,13 @@ class _LibraryTabState extends State<LibraryTab>
       separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final item = _history[index];
-        return InkWell(
-          onTap: () {
-            final anime = AnimeItem(
-              id: item.animeId,
-              slug: item.animeSlug,
-              title: item.animeTitle,
-              posterUrl: item.animePoster,
-            );
-            final episode = EpisodeItem(
-              id: '',
-              number: item.episodeNumber,
-              title: item.episodeTitle,
-              slug: item.animeSlug,
-            );
-
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => PlayerScreen(
-                  anime: anime,
-                  initialEpisode: episode,
-                ),
-              ),
-            ).then((_) => _loadData());
+        return AnimeHistoryCard(
+          item: item,
+          onRefresh: _loadData,
+          onDelete: () async {
+            await StorageService.deleteHistoryItem(item.animeId, item.animeSlug);
+            _loadData();
           },
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: SizedBox(
-                    width: 50,
-                    height: 68,
-                    child: item.animePoster.isNotEmpty
-                        ? Image.network(
-                            item.animePoster,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                              color: AppColors.surfaceMuted,
-                              child: const Icon(Icons.movie,
-                                  color: AppColors.textMuted),
-                            ),
-                          )
-                        : Container(
-                            color: AppColors.surfaceMuted,
-                            child: const Icon(Icons.movie,
-                                color: AppColors.textMuted),
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.animeTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Episode ${item.episodeNumber}: ${item.episodeTitle}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _formatTimestamp(item.timestamp),
-                        style: const TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AppColors.accentMuted,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.play_arrow_rounded,
-                        color: AppColors.accent, size: 22),
-                  ),
-                ),
-              ],
-            ),
-          ),
         );
       },
     );

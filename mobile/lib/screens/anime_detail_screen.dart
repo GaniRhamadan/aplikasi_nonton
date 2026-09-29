@@ -21,7 +21,8 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
   bool _isLoading = true;
   bool _isBookmarked = false;
   bool _isDub = false;
-  int _lastWatchedEpisode = 1;
+  int? _lastWatchedEpisode;
+  Set<int> _watchedEpisodes = {};
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -41,21 +42,13 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
   }
 
   void _checkHistory() {
-    final history = StorageService.getHistory();
-    final item = history.firstWhere(
-      (h) => h.animeId == widget.anime.id || h.animeSlug == widget.anime.slug,
-      orElse: () => WatchHistoryItem(
-        animeId: '',
-        animeSlug: '',
-        animeTitle: '',
-        animePoster: '',
-        episodeNumber: 1,
-        episodeTitle: '',
-        timestamp: 0,
-      ),
-    );
-    if (item.animeId.isNotEmpty) {
-      setState(() => _lastWatchedEpisode = item.episodeNumber);
+    final item = StorageService.getHistoryForAnime(
+        widget.anime.id, widget.anime.slug);
+    if (mounted) {
+      setState(() {
+        _lastWatchedEpisode = item?.episodeNumber;
+        _watchedEpisodes = item != null ? item.watchedEpisodes.toSet() : {};
+      });
     }
   }
 
@@ -277,35 +270,93 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
 
             const SizedBox(height: 16),
 
-            // Primary Play Action (min 48px height touch target)
-            ElevatedButton.icon(
-              onPressed: () {
-                if (_episodes.isNotEmpty) {
-                  final target = _episodes.firstWhere(
-                    (e) => e.number == _lastWatchedEpisode,
-                    orElse: () => _episodes.first,
-                  );
-                  _playEpisode(target);
+            // Smart Continue / Play logic
+            Builder(
+              builder: (context) {
+                final hasHistory = _lastWatchedEpisode != null && _lastWatchedEpisode! > 0;
+                final lastEp = _lastWatchedEpisode ?? 1;
+
+                int targetEp = 1;
+                String buttonText;
+
+                if (hasHistory) {
+                  final maxEp = _episodes.isNotEmpty
+                      ? _episodes.map((e) => e.number).reduce((a, b) => a > b ? a : b)
+                      : (widget.anime.totalEpisodes > 0
+                          ? widget.anime.totalEpisodes
+                          : lastEp);
+
+                  if (lastEp < maxEp) {
+                    targetEp = lastEp + 1;
+                    buttonText = 'Lanjut Episode $targetEp';
+                  } else {
+                    targetEp = lastEp;
+                    buttonText = 'Tonton Ulang Episode $targetEp';
+                  }
                 } else {
-                  _playEpisode(
-                    EpisodeItem(
-                      id: '',
-                      number: _lastWatchedEpisode,
-                      title: 'Episode $_lastWatchedEpisode',
-                      slug: widget.anime.slug,
-                    ),
-                  );
+                  targetEp = 1;
+                  buttonText = 'Mulai Menonton (Ep 1)';
                 }
+
+                return Column(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        if (_episodes.isNotEmpty) {
+                          final target = _episodes.firstWhere(
+                            (e) => e.number == targetEp,
+                            orElse: () => _episodes.first,
+                          );
+                          _playEpisode(target);
+                        } else {
+                          _playEpisode(
+                            EpisodeItem(
+                              id: '',
+                              number: targetEp,
+                              title: 'Episode $targetEp',
+                              slug: widget.anime.slug,
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.play_arrow_rounded, size: 24),
+                      label: Text(buttonText),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                      ),
+                    ),
+                    if (hasHistory) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.accentMuted,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.accentBorder),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.history_rounded,
+                                size: 16, color: AppColors.accent),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Terakhir ditonton: Episode $lastEp • ${_watchedEpisodes.length} episode selesai',
+                                style: const TextStyle(
+                                  color: AppColors.accent,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                );
               },
-              icon: const Icon(Icons.play_arrow_rounded, size: 24),
-              label: Text(
-                _lastWatchedEpisode > 1
-                    ? 'Lanjutkan Episode $_lastWatchedEpisode'
-                    : 'Mulai Menonton (Ep 1)',
-              ),
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size.fromHeight(50),
-              ),
             ),
 
             const SizedBox(height: 20),
@@ -443,6 +494,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                 itemBuilder: (context, index) {
                   final episode = _filteredEpisodes[index];
                   final isLastWatched = episode.number == _lastWatchedEpisode;
+                  final isWatched = _watchedEpisodes.contains(episode.number);
 
                   return InkWell(
                     onTap: () => _playEpisode(episode),
@@ -453,13 +505,17 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                       decoration: BoxDecoration(
                         color: isLastWatched
                             ? AppColors.accentMuted
-                            : AppColors.surface,
+                            : (isWatched
+                                ? const Color(0xFF141A18)
+                                : AppColors.surface),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: isLastWatched
                               ? AppColors.accent
-                              : AppColors.border,
-                          width: 1.2,
+                              : (isWatched
+                                  ? const Color(0xFF1C3A2C)
+                                  : AppColors.border),
+                          width: isLastWatched ? 1.4 : 1.0,
                         ),
                       ),
                       child: Row(
@@ -470,20 +526,28 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                             decoration: BoxDecoration(
                               color: isLastWatched
                                   ? AppColors.accent
-                                  : AppColors.surfaceMuted,
+                                  : (isWatched
+                                      ? const Color(0xFF1C3A2C)
+                                      : AppColors.surfaceMuted),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Center(
-                              child: Text(
-                                '${episode.number}',
-                                style: TextStyle(
-                                  color: isLastWatched
-                                      ? Colors.white
-                                      : AppColors.textPrimary,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                ),
-                              ),
+                              child: isWatched && !isLastWatched
+                                  ? const Icon(
+                                      Icons.check_rounded,
+                                      color: Color(0xFF34D399),
+                                      size: 18,
+                                    )
+                                  : Text(
+                                      '${episode.number}',
+                                      style: TextStyle(
+                                        color: isLastWatched
+                                            ? Colors.white
+                                            : AppColors.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                      ),
+                                    ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -498,18 +562,29 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                                   style: TextStyle(
                                     color: isLastWatched
                                         ? AppColors.accent
-                                        : AppColors.textPrimary,
+                                        : (isWatched
+                                            ? const Color(0xFFD1D5DB)
+                                            : AppColors.textPrimary),
                                     fontWeight: isLastWatched
-                                        ? FontWeight.w600
-                                        : FontWeight.w400,
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
                                     fontSize: 14,
                                   ),
                                 ),
                                 if (isLastWatched)
                                   const Text(
-                                    'Terakhir ditonton',
+                                    '★ Terakhir ditonton',
                                     style: TextStyle(
                                       color: AppColors.accent,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  )
+                                else if (isWatched)
+                                  const Text(
+                                    '✓ Sudah ditonton',
+                                    style: TextStyle(
+                                      color: Color(0xFF34D399),
                                       fontSize: 11,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -520,11 +595,15 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                           Icon(
                             isLastWatched
                                 ? Icons.play_circle_filled
-                                : Icons.play_arrow_outlined,
+                                : (isWatched
+                                    ? Icons.check_circle_outline_rounded
+                                    : Icons.play_arrow_outlined),
                             color: isLastWatched
                                 ? AppColors.accent
-                                : AppColors.textSecondary,
-                            size: 24,
+                                : (isWatched
+                                    ? const Color(0xFF34D399)
+                                    : AppColors.textSecondary),
+                            size: 22,
                           ),
                         ],
                       ),
