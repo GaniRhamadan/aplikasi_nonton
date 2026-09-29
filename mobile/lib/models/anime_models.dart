@@ -18,6 +18,7 @@ class AnimeItem {
   final String? episodeLabel;
   final String? genreLabel;
   final bool isNew;
+  final String? statusBadge;
 
   const AnimeItem({
     required this.id,
@@ -37,6 +38,7 @@ class AnimeItem {
     this.episodeLabel,
     this.genreLabel,
     this.isNew = false,
+    this.statusBadge,
   });
 
   String get displayGenre {
@@ -96,6 +98,7 @@ class AnimeItem {
     String? episodeLabel,
     String? genreLabel,
     bool? isNew,
+    String? statusBadge,
   }) {
     return AnimeItem(
       id: id ?? this.id,
@@ -115,6 +118,7 @@ class AnimeItem {
       episodeLabel: episodeLabel ?? this.episodeLabel,
       genreLabel: genreLabel ?? this.genreLabel,
       isNew: isNew ?? this.isNew,
+      statusBadge: statusBadge ?? this.statusBadge,
     );
   }
 

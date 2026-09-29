@@ -2,11 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/anime_models.dart';
 import '../services/anime_service.dart';
-import '../services/storage_service.dart';
-import '../services/update_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/anime_card.dart';
-import '../widgets/continue_watching_card.dart';
+import '../widgets/anime_home_widgets.dart';
 
 class ExploreTab extends StatefulWidget {
   const ExploreTab({super.key});
@@ -20,40 +17,36 @@ class _ExploreTabState extends State<ExploreTab> {
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounceTimer;
 
-  List<AnimeItem> _animeList = [];
-  bool _isLoading = true;
-  final Set<String> _selectedGenreSlugs = {};
-  WatchHistoryItem? _latestHistory;
+  bool _isLoading = false;
+  List<AnimeItem> _searchResults = [];
+  String? _activeFilterTitle;
 
-  // Primary popular genres for quick horizontal bar
-  final List<Map<String, String>> _quickGenres = [
-    {'name': 'Action', 'slug': 'action'},
-    {'name': 'Adventure', 'slug': 'adventure'},
-    {'name': 'Comedy', 'slug': 'comedy'},
-    {'name': 'Fantasy', 'slug': 'fantasy'},
-    {'name': 'Isekai', 'slug': 'isekai'},
-    {'name': 'Romance', 'slug': 'romance'},
-    {'name': 'Sci-Fi', 'slug': 'sci-fi'},
-    {'name': 'Shounen', 'slug': 'shounen'},
-    {'name': 'Supernatural', 'slug': 'supernatural'},
+  // Selected genres in the 93-multi-genre picker sheet
+  final Set<String> _selectedGenreSlugs = {};
+
+  final List<String> _studios = [
+    'MAPPA',
+    'Ufotable',
+    'Wit Studio',
+    'CloverWorks',
+    'Bones',
+    'Kyoto Animation',
+    'Madhouse',
+    'Toei Animation',
+    'A-1 Pictures',
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    _loadHistory();
-    _fetchAnime();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkForAppUpdate();
-    });
-  }
-
-  Future<void> _checkForAppUpdate() async {
-    final update = await UpdateService.checkForUpdate();
-    if (mounted && update != null) {
-      UpdateService.showUpdateModal(context, update);
-    }
-  }
+  final List<String> _years = [
+    '2026',
+    '2025',
+    '2024',
+    '2023',
+    '2022',
+    '2021',
+    '2020',
+    '2019',
+    '2018',
+  ];
 
   @override
   void dispose() {
@@ -62,20 +55,16 @@ class _ExploreTabState extends State<ExploreTab> {
     super.dispose();
   }
 
-  void _loadHistory() {
-    final history = StorageService.getHistory();
-    setState(() {
-      _latestHistory = history.isNotEmpty ? history.first : null;
-    });
-  }
-
   void _onSearchChanged(String text) {
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+    _debounceTimer = Timer(const Duration(milliseconds: 450), () {
       if (text.trim().isNotEmpty) {
-        _searchAnime(text);
+        _searchAnime(text.trim());
       } else {
-        _fetchAnime();
+        setState(() {
+          _searchResults = [];
+          _activeFilterTitle = null;
+        });
       }
     });
   }
@@ -86,78 +75,410 @@ class _ExploreTabState extends State<ExploreTab> {
 
     setState(() {
       _isLoading = true;
-      _animeList = [];
+      _activeFilterTitle = 'Pencarian: "$clean"';
     });
 
     final results = await _animeService.searchAnime(clean);
     if (mounted) {
       setState(() {
-        _animeList = results;
+        _searchResults = results;
         _isLoading = false;
       });
     }
   }
 
-  Future<void> _fetchAnime() async {
+  Future<void> _filterByGenre(String genreSlug, String genreName) async {
     setState(() {
       _isLoading = true;
-      _animeList = [];
+      _activeFilterTitle = 'Kategori: $genreName';
+      _searchController.text = genreName;
     });
 
-    List<AnimeItem> results;
-    if (_selectedGenreSlugs.isEmpty) {
-      results = await _animeService.getPopularAnime();
-    } else {
-      results = await _animeService.getAnimeByGenres(_selectedGenreSlugs.toList());
-    }
-
+    final results = await _animeService.getAnimeByGenre(genreSlug);
     if (mounted) {
       setState(() {
-        _animeList = results;
+        _searchResults = results;
         _isLoading = false;
       });
     }
   }
 
-  void _toggleQuickGenre(String slug) {
+  Future<void> _filterByStudio(String studio) async {
     setState(() {
-      _searchController.clear();
-      if (_selectedGenreSlugs.contains(slug)) {
-        _selectedGenreSlugs.remove(slug);
-      } else {
-        _selectedGenreSlugs.add(slug);
-      }
+      _isLoading = true;
+      _activeFilterTitle = 'Studio: $studio';
+      _searchController.text = studio;
     });
-    _fetchAnime();
+
+    final results = await _animeService.searchAnime(studio);
+    if (mounted) {
+      setState(() {
+        _searchResults = results;
+        _isLoading = false;
+      });
+    }
   }
 
-  void _clearAllGenres() {
+  Future<void> _filterByYear(String year) async {
     setState(() {
-      _selectedGenreSlugs.clear();
-      _searchController.clear();
+      _isLoading = true;
+      _activeFilterTitle = 'Tahun: $year';
+      _searchController.text = year;
     });
-    _fetchAnime();
+
+    final results = await _animeService.searchAnime(year);
+    if (mounted) {
+      setState(() {
+        _searchResults = results;
+        _isLoading = false;
+      });
+    }
   }
 
-  String _getGenreName(String slug) {
-    final found = AnimeService.allGenres.firstWhere(
-      (g) => g['slug'] == slug,
-      orElse: () => {'name': slug, 'slug': slug},
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() {
+      _activeFilterTitle = null;
+      _searchResults = [];
+      _isLoading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isSearching =
+        _searchController.text.isNotEmpty || _activeFilterTitle != null;
+
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            // 1. Search Bar at Top (matching Screenshot 1 & 2)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+              child: Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF13151D),
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(color: const Color(0xFF222533)),
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: _onSearchChanged,
+                  onSubmitted: _searchAnime,
+                  textInputAction: TextInputAction.search,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    filled: false,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      color: Color(0xFF6B7280),
+                      size: 22,
+                    ),
+                    hintText: 'Cari Anime..',
+                    hintStyle: const TextStyle(
+                      color: Color(0xFF6B7280),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    suffixIcon: isSearching
+                        ? IconButton(
+                            icon: const Icon(Icons.close_rounded,
+                                size: 20, color: AppColors.textSecondary),
+                            onPressed: _clearSearch,
+                          )
+                        : null,
+                  ),
+                ),
+              ),
+            ),
+
+            // 2. Body: Either Search Results Grid OR Discovery Categories
+            Expanded(
+              child: isSearching
+                  ? _buildSearchResults()
+                  : _buildDiscoveryHub(),
+            ),
+          ],
+        ),
+      ),
     );
-    return found['name'] ?? slug;
   }
 
+  /// Discovery Hub (matching Screenshot 1 & 2 with KATEGORI, STUDIO, and TAHUN)
+  Widget _buildDiscoveryHub() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+      children: [
+        // KATEGORI Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'KATEGORI',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.2,
+              ),
+            ),
+            InkWell(
+              onTap: _showMultiGenrePickerSheet,
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1C1E26),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.white70,
+                  size: 20,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        // Pastel Category Cards (matching Screenshot 1 & 2)
+        GenreCategoryCard(
+          genreTitle: 'Romance',
+          characterImageUrl:
+              'https://cdn.myanimelist.net/images/characters/11/382092.jpg',
+          backgroundColor: const Color(0xFFDCE0E8),
+          onTap: () => _filterByGenre('romance', 'Romance'),
+        ),
+        GenreCategoryCard(
+          genreTitle: 'Horror',
+          characterImageUrl:
+              'https://cdn.myanimelist.net/images/characters/16/329598.jpg',
+          backgroundColor: const Color(0xFFFFFFFF),
+          onTap: () => _filterByGenre('horror', 'Horror'),
+        ),
+        GenreCategoryCard(
+          genreTitle: 'Fantasy',
+          characterImageUrl:
+              'https://cdn.myanimelist.net/images/characters/2/411899.jpg',
+          backgroundColor: const Color(0xFFF3ECE1),
+          onTap: () => _filterByGenre('fantasy', 'Fantasy'),
+        ),
+        GenreCategoryCard(
+          genreTitle: 'Action',
+          characterImageUrl:
+              'https://cdn.myanimelist.net/images/characters/7/492576.jpg',
+          backgroundColor: const Color(0xFFE4DFEC),
+          onTap: () => _filterByGenre('action', 'Action'),
+        ),
+        GenreCategoryCard(
+          genreTitle: 'Comedy',
+          characterImageUrl:
+              'https://cdn.myanimelist.net/images/characters/13/14589.jpg',
+          backgroundColor: const Color(0xFFFFF4DE),
+          onTap: () => _filterByGenre('comedy', 'Comedy'),
+        ),
+        GenreCategoryCard(
+          genreTitle: 'Isekai',
+          characterImageUrl:
+              'https://cdn.myanimelist.net/images/characters/14/434691.jpg',
+          backgroundColor: const Color(0xFFDCF0FA),
+          onTap: () => _filterByGenre('isekai', 'Isekai'),
+        ),
+
+        const SizedBox(height: 18),
+
+        // STUDIO Section (matching Screenshot 1 & 2)
+        const Text(
+          'STUDIO',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.2,
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        SizedBox(
+          height: 56,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _studios.length,
+            itemBuilder: (context, index) {
+              return StudioChip(
+                studioName: _studios[index],
+                onTap: () => _filterByStudio(_studios[index]),
+              );
+            },
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // TAHUN Section (matching Screenshot 1 & 2)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'TAHUN',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.2,
+              ),
+            ),
+            InkWell(
+              onTap: () {},
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1C1E26),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.white70,
+                  size: 20,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        SizedBox(
+          height: 48,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _years.length,
+            itemBuilder: (context, index) {
+              return YearChip(
+                year: _years[index],
+                onTap: () => _filterByYear(_years[index]),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Search & Filter Results Grid
+  Widget _buildSearchResults() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.accent,
+          strokeWidth: 2.5,
+        ),
+      );
+    }
+
+    if (_searchResults.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.search_off_rounded,
+                size: 54, color: AppColors.textMuted),
+            const SizedBox(height: 12),
+            Text(
+              'Tidak ditemukan anime untuk "${_searchController.text}"',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: _clearSearch,
+              child: const Text('Kembali ke Kategori'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _activeFilterTitle ?? 'Hasil Pencarian',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                '${_searchResults.length} Anime',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 0.44,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 16,
+            ),
+            itemCount: _searchResults.length,
+            itemBuilder: (context, index) {
+              final anime = _searchResults[index];
+              return AnimeVerticalCard(
+                anime: anime,
+                topSubtitle: anime.displayGenre,
+                topSubtitleColor: AppColors.accent,
+                showViews: true,
+                showFavorites: true,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 93 Multi-Genre Picker Sheet
   void _showMultiGenrePickerSheet() {
-    // Local copy of selections during modal interaction
     final tempSelected = Set<String>.from(_selectedGenreSlugs);
-    String modalSearchQuery = '';
+    String modalSearch = '';
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
         return StatefulBuilder(
@@ -166,229 +487,127 @@ class _ExploreTabState extends State<ExploreTab> {
               final slug = g['slug'] ?? '';
               final name = g['name'] ?? '';
               if (slug.isEmpty) return false;
-              if (modalSearchQuery.isEmpty) return true;
-              return name.toLowerCase().contains(modalSearchQuery.toLowerCase());
+              if (modalSearch.isEmpty) return true;
+              return name.toLowerCase().contains(modalSearch.toLowerCase());
             }).toList();
 
             return DraggableScrollableSheet(
-              initialChildSize: 0.82,
+              initialChildSize: 0.85,
               minChildSize: 0.5,
               maxChildSize: 0.95,
               expand: false,
               builder: (_, scrollController) {
                 return Column(
                   children: [
-                    // Header
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+                      padding: const EdgeInsets.fromLTRB(20, 18, 16, 12),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Text(
-                                    'Pilih Multi-Genre',
-                                    style: TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  if (tempSelected.isNotEmpty)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.accent,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        '${tempSelected.length} dipilih',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 3),
-                              const Text(
-                                'Bisa memilih lebih dari satu genre sekaligus',
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
+                          const Text(
+                            'Pilih Genre Lengkap (93 Genre)',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.close,
+                            icon: const Icon(Icons.close_rounded,
                                 color: AppColors.textSecondary),
                             onPressed: () => Navigator.pop(ctx),
                           ),
                         ],
                       ),
                     ),
-
-                    // Filter Search Input in Sheet
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: TextField(
                         onChanged: (val) {
-                          setModalState(() {
-                            modalSearchQuery = val;
-                          });
+                          setModalState(() => modalSearch = val);
                         },
                         decoration: InputDecoration(
-                          hintText: 'Cari genre (Action, Isekai, Romance...)...',
-                          prefixIcon: const Icon(Icons.search, size: 20),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
-                          filled: true,
-                          fillColor: AppColors.surfaceMuted,
+                          hintText: 'Cari nama genre...',
+                          prefixIcon: const Icon(Icons.search,
+                              color: AppColors.textSecondary),
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 14),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide.none,
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 10),
-                    const Divider(height: 1, color: AppColors.border),
-
-                    // Genre Checkbox Grid
                     Expanded(
-                      child: GridView.builder(
+                      child: ListView.builder(
                         controller: scrollController,
-                        padding: const EdgeInsets.all(16),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 2.8,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                        ),
                         itemCount: availableGenres.length,
                         itemBuilder: (context, index) {
-                          final item = availableGenres[index];
-                          final name = item['name'] ?? '';
-                          final slug = item['slug'] ?? '';
-                          final isSelected = tempSelected.contains(slug);
+                          final g = availableGenres[index];
+                          final name = g['name'] ?? '';
+                          final slug = g['slug'] ?? '';
+                          final isChecked = tempSelected.contains(slug);
 
-                          return InkWell(
-                            onTap: () {
+                          return CheckboxListTile(
+                            value: isChecked,
+                            title: Text(
+                              name,
+                              style: TextStyle(
+                                color: isChecked
+                                    ? AppColors.accent
+                                    : AppColors.textPrimary,
+                                fontWeight: isChecked
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
+                            ),
+                            activeColor: AppColors.accent,
+                            onChanged: (val) {
                               setModalState(() {
-                                if (isSelected) {
-                                  tempSelected.remove(slug);
-                                } else {
+                                if (val == true) {
                                   tempSelected.add(slug);
+                                } else {
+                                  tempSelected.remove(slug);
                                 }
                               });
                             },
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AppColors.accentMuted
-                                    : AppColors.surface,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? AppColors.accent
-                                      : AppColors.border,
-                                  width: 1.3,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    isSelected
-                                        ? Icons.check_box_rounded
-                                        : Icons.check_box_outline_blank_rounded,
-                                    size: 18,
-                                    color: isSelected
-                                        ? AppColors.accent
-                                        : AppColors.textMuted,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: isSelected
-                                            ? AppColors.accent
-                                            : AppColors.textPrimary,
-                                        fontSize: 12.5,
-                                        fontWeight: isSelected
-                                            ? FontWeight.w700
-                                            : FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
                           );
                         },
                       ),
                     ),
-
-                    // Bottom Action Bar
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                      decoration: const BoxDecoration(
-                        color: AppColors.surface,
-                        border: Border(top: BorderSide(color: AppColors.border)),
-                      ),
-                      child: Row(
-                        children: [
-                          if (tempSelected.isNotEmpty) ...[
-                            OutlinedButton(
-                              onPressed: () {
-                                setModalState(() {
-                                  tempSelected.clear();
-                                });
-                              },
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(90, 48),
-                              ),
-                              child: const Text('Reset'),
-                            ),
-                            const SizedBox(width: 10),
-                          ],
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                Navigator.pop(ctx);
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            Navigator.pop(ctx);
+                            if (tempSelected.isNotEmpty) {
+                              setState(() {
+                                _selectedGenreSlugs.clear();
+                                _selectedGenreSlugs.addAll(tempSelected);
+                                _isLoading = true;
+                                _activeFilterTitle =
+                                    'Multi-Genre (${tempSelected.length})';
+                              });
+                              final res = await _animeService
+                                  .getAnimeByGenres(tempSelected.toList());
+                              if (mounted) {
                                 setState(() {
-                                  _selectedGenreSlugs.clear();
-                                  _selectedGenreSlugs.addAll(tempSelected);
-                                  _searchController.clear();
+                                  _searchResults = res;
+                                  _isLoading = false;
                                 });
-                                _fetchAnime();
-                              },
-                              style: ElevatedButton.styleFrom(
-                                minimumSize: const Size.fromHeight(48),
-                              ),
-                              child: Text(
-                                tempSelected.isEmpty
-                                    ? 'Terapkan (Semua Genre)'
-                                    : 'Terapkan (${tempSelected.length} Genre)',
-                              ),
-                            ),
+                              }
+                            }
+                          },
+                          child: Text(
+                            tempSelected.isEmpty
+                                ? 'Tutup'
+                                : 'Terapkan (${tempSelected.length} Genre)',
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ],
@@ -398,402 +617,6 @@ class _ExploreTabState extends State<ExploreTab> {
           },
         );
       },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RefreshIndicator(
-      color: AppColors.accent,
-      backgroundColor: AppColors.surface,
-      onRefresh: () async {
-        _loadHistory();
-        if (_searchController.text.isNotEmpty) {
-          await _searchAnime(_searchController.text);
-        } else {
-          await _fetchAnime();
-        }
-      },
-      child: CustomScrollView(
-        slivers: [
-          // App Bar with Clean Title - Pinned to prevent status bar overlap
-          SliverAppBar(
-            floating: false,
-            pinned: true,
-            snap: false,
-            elevation: 0,
-            scrolledUnderElevation: 1,
-            backgroundColor: AppColors.surface,
-            title: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: AppColors.accent,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.play_arrow_rounded,
-                        color: Colors.white, size: 22),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Text(
-                  'AniMobile',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.4,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Search Input & Filters
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Search Bar with explicit Search button
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          onChanged: _onSearchChanged,
-                          onSubmitted: _searchAnime,
-                          textInputAction: TextInputAction.search,
-                          decoration: InputDecoration(
-                            hintText: 'Cari anime (Naruto, Solo Leveling, dll)...',
-                            prefixIcon: const Icon(Icons.search,
-                                color: AppColors.textSecondary, size: 22),
-                            suffixIcon: _searchController.text.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear, size: 20),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      _fetchAnime();
-                                    },
-                                  )
-                                : null,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () => _searchAnime(_searchController.text),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(64, 48),
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                        ),
-                        child: const Text('Cari'),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // Horizontal Quick Bar: "Semua", Multi-Genres Toggle, "Pilih Genre (42+)"
-                  SizedBox(
-                    height: 38,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _quickGenres.length + 2,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(width: 8),
-                      itemBuilder: (context, index) {
-                        // 1. "Semua" button
-                        if (index == 0) {
-                          final isAll = _selectedGenreSlugs.isEmpty &&
-                              _searchController.text.isEmpty;
-                          return InkWell(
-                            onTap: _clearAllGenres,
-                            borderRadius: BorderRadius.circular(20),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: isAll
-                                    ? AppColors.textPrimary
-                                    : AppColors.surface,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: isAll
-                                      ? AppColors.textPrimary
-                                      : AppColors.border,
-                                ),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  'Semua',
-                                  style: TextStyle(
-                                    color: isAll
-                                        ? Colors.white
-                                        : AppColors.textSecondary,
-                                    fontSize: 12,
-                                    fontWeight: isAll
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-
-                        // 2. "Pilih Genre (42+)" modal button
-                        if (index == _quickGenres.length + 1) {
-                          final hasCount = _selectedGenreSlugs.isNotEmpty;
-                          return OutlinedButton.icon(
-                            onPressed: _showMultiGenrePickerSheet,
-                            icon: const Icon(Icons.tune_rounded, size: 16),
-                            label: Text(
-                              hasCount
-                                  ? 'Filter Genre (${_selectedGenreSlugs.length})'
-                                  : 'Pilih Multi-Genre (93 Genre)',
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(120, 38),
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              foregroundColor: hasCount
-                                  ? Colors.white
-                                  : AppColors.accent,
-                              backgroundColor: hasCount
-                                  ? AppColors.accent
-                                  : AppColors.accentMuted,
-                              side: BorderSide(
-                                color: hasCount
-                                    ? AppColors.accent
-                                    : AppColors.accentBorder,
-                              ),
-                            ),
-                          );
-                        }
-
-                        // 3. Quick genre toggle pills
-                        final item = _quickGenres[index - 1];
-                        final name = item['name'] ?? '';
-                        final slug = item['slug'] ?? '';
-                        final isSelected = _selectedGenreSlugs.contains(slug);
-
-                        return InkWell(
-                          onTap: () => _toggleQuickGenre(slug),
-                          borderRadius: BorderRadius.circular(20),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.accentMuted
-                                  : AppColors.surface,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: isSelected
-                                    ? AppColors.accent
-                                    : AppColors.border,
-                                width: isSelected ? 1.5 : 1.0,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                if (isSelected) ...[
-                                  const Icon(Icons.check,
-                                      size: 14, color: AppColors.accent),
-                                  const SizedBox(width: 4),
-                                ],
-                                Text(
-                                  name,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? AppColors.accent
-                                        : AppColors.textSecondary,
-                                    fontSize: 12,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-
-                  // Active Filter Chips Bar (if multiple genres selected)
-                  if (_selectedGenreSlugs.isNotEmpty &&
-                      _searchController.text.isEmpty) ...[
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        ..._selectedGenreSlugs.map((slug) {
-                          return Chip(
-                            label: Text(_getGenreName(slug)),
-                            deleteIcon: const Icon(Icons.close, size: 14),
-                            onDeleted: () => _toggleQuickGenre(slug),
-                            backgroundColor: AppColors.accentMuted,
-                            side: const BorderSide(color: AppColors.accentBorder),
-                            labelStyle: const TextStyle(
-                              color: AppColors.accent,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            padding: EdgeInsets.zero,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                          );
-                        }),
-                        ActionChip(
-                          label: const Text('Hapus Semua'),
-                          onPressed: _clearAllGenres,
-                          backgroundColor: AppColors.surfaceMuted,
-                          side: const BorderSide(color: AppColors.border),
-                          labelStyle: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          padding: EdgeInsets.zero,
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ],
-                    ),
-                  ],
-
-                  const SizedBox(height: 16),
-
-                  // Continue Watching Card (if history exists)
-                  if (_latestHistory != null)
-                    ContinueWatchingCard(item: _latestHistory!),
-
-                  // Section Title & Filter Indicator
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          _searchController.text.isNotEmpty
-                              ? 'Hasil Pencarian: "${_searchController.text}"'
-                              : _selectedGenreSlugs.isEmpty
-                                  ? 'Anime Tren & Populer'
-                                  : 'Filter Genre: ${_selectedGenreSlugs.map(_getGenreName).join(" + ")}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                      ),
-                      if (_isLoading)
-                        const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.accent,
-                          ),
-                        )
-                      else
-                        Text(
-                          '${_animeList.length} Anime',
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Anime Grid or Loading/Empty State
-          if (_isLoading && _animeList.isEmpty)
-            const SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: AppColors.accent,
-                ),
-              ),
-            )
-          else if (_animeList.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.search_off_rounded,
-                          size: 48, color: AppColors.textMuted),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Tidak ada anime yang cocok',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _selectedGenreSlugs.isNotEmpty
-                            ? 'Coba kurangi kombinasi genre yang dipilih atau ganti kata kunci.'
-                            : 'Pastikan ejaan judul sudah benar atau coba cari genre lain.',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton(
-                        onPressed: _clearAllGenres,
-                        child: const Text('Reset Filter & Tampilkan Semua'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 0.65,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 14,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final anime = _animeList[index];
-                    return AnimeCard(anime: anime);
-                  },
-                  childCount: _animeList.length,
-                ),
-              ),
-            ),
-        ],
-      ),
     );
   }
 }

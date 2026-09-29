@@ -62,6 +62,8 @@ class AnimeVerticalCard extends StatelessWidget {
   final bool showFavorites;
   final bool showReleaseDate;
   final bool showNewBadge;
+  final String? customStatusBadge;
+  final double? cardWidth;
   final VoidCallback? onTap;
 
   const AnimeVerticalCard({
@@ -73,6 +75,8 @@ class AnimeVerticalCard extends StatelessWidget {
     this.showFavorites = true,
     this.showReleaseDate = false,
     this.showNewBadge = false,
+    this.customStatusBadge,
+    this.cardWidth,
     this.onTap,
   });
 
@@ -80,9 +84,7 @@ class AnimeVerticalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final subText = topSubtitle ?? anime.displayGenre;
 
-    return SizedBox(
-      width: 130,
-      child: InkWell(
+    final content = InkWell(
         onTap: onTap ??
             () {
               Navigator.push(
@@ -240,21 +242,26 @@ class AnimeVerticalCard extends StatelessWidget {
                 ),
               ),
 
-            // Third stats row: "new !!" badge
-            if (showNewBadge || anime.isNew)
+            // Third stats row: "new !!" or "tamat" badge
+            if (showNewBadge ||
+                anime.isNew ||
+                customStatusBadge != null ||
+                anime.statusBadge != null)
               Padding(
                 padding: const EdgeInsets.only(top: 1),
                 child: Row(
-                  children: const [
-                    Icon(
+                  children: [
+                    const Icon(
                       Icons.access_time_filled_rounded,
                       size: 12,
                       color: AppColors.badgePurple,
                     ),
-                    SizedBox(width: 4),
+                    const SizedBox(width: 4),
                     Text(
-                      'new !!',
-                      style: TextStyle(
+                      customStatusBadge ??
+                          anime.statusBadge ??
+                          (anime.isNew ? 'new !!' : 'tamat'),
+                      style: const TextStyle(
                         color: AppColors.badgePurple,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -265,8 +272,12 @@ class AnimeVerticalCard extends StatelessWidget {
               ),
           ],
         ),
-      ),
-    );
+      );
+
+    if (cardWidth != null) {
+      return SizedBox(width: cardWidth, child: content);
+    }
+    return content;
   }
 
   Widget _buildPlaceholder() {
@@ -484,3 +495,192 @@ class CuplixAvatar extends StatelessWidget {
     );
   }
 }
+
+/// Genre Category Card with pastel background & character illustration (matching Screenshot 1 & 2 in CARI)
+class GenreCategoryCard extends StatelessWidget {
+  final String genreTitle;
+  final String categoryLabel;
+  final String characterImageUrl;
+  final Color backgroundColor;
+  final VoidCallback onTap;
+
+  const GenreCategoryCard({
+    super.key,
+    required this.genreTitle,
+    this.categoryLabel = 'Genre',
+    required this.characterImageUrl,
+    required this.backgroundColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      height: 98,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Row(
+            children: [
+              // Genre Title and Label on Left
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 20, top: 16, bottom: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        categoryLabel,
+                        style: const TextStyle(
+                          color: Color(0xFF4B5563),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        genreTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF1F2937),
+                          fontSize: 27,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Character Illustration cutout on Right
+              ClipRRect(
+                borderRadius: const BorderRadius.horizontal(right: Radius.circular(18)),
+                child: SizedBox(
+                  width: 120,
+                  height: 98,
+                  child: Image.network(
+                    characterImageUrl,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      color: Colors.black12,
+                      child: const Icon(Icons.palette_outlined, color: Colors.black26),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Studio Chip Button (matching Screenshot 1 & 2 in CARI)
+class StudioChip extends StatelessWidget {
+  final String studioName;
+  final VoidCallback onTap;
+
+  const StudioChip({
+    super.key,
+    required this.studioName,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF191D26),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF242A38), width: 1.2),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
+            child: Center(
+              child: Text(
+                studioName,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Year Chip Button (matching Screenshot 1 & 2 in CARI)
+class YearChip extends StatelessWidget {
+  final String year;
+  final VoidCallback onTap;
+
+  const YearChip({
+    super.key,
+    required this.year,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF191D26),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF242A38)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+            child: Center(
+              child: Text(
+                year,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
