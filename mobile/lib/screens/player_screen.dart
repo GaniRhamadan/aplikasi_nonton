@@ -186,19 +186,42 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final script = '''
       (function() {
         try {
+          window.__subIndoEnabled = $_subIndoEnabled;
+
+          // 1. Ensure CSS exists to hide default English cue text when Indo is active
+          var hideStyle = document.getElementById('sub-hide-cues-style');
+          if (!hideStyle) {
+            hideStyle = document.createElement('style');
+            hideStyle.id = 'sub-hide-cues-style';
+            document.head.appendChild(hideStyle);
+          }
+          if (window.__subIndoEnabled) {
+            hideStyle.innerHTML = 'video::cue { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; } .jw-text-track-cue { opacity: 0 !important; display: none !important; }';
+          } else {
+            hideStyle.innerHTML = '';
+          }
+
+          // 2. Setup Subtitle Overlay inside Player container
+          var playerContainer = document.getElementById('megaplay-player') ||
+                                document.querySelector('.mg3-player') ||
+                                document.querySelector('.fix-area') ||
+                                document.body;
+
           var overlay = document.getElementById('sub-id-overlay');
           if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'sub-id-overlay';
-            overlay.style.cssText = 'position:fixed;bottom:12%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#fff;padding:6px 14px;border-radius:6px;font-size:16px;font-weight:700;text-align:center;max-width:92%;z-index:9999999;pointer-events:none;display:none;line-height:1.35;font-family:sans-serif;text-shadow:0 1px 3px rgba(0,0,0,0.9);border:1px solid rgba(255,255,255,0.2);';
-            document.body.appendChild(overlay);
-          }
-          window.__subIndoEnabled = $_subIndoEnabled;
-          if (!window.__subIndoEnabled) {
-            overlay.style.display = 'none';
-            return;
+            overlay.style.cssText = 'position:fixed;bottom:14%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#FFFFFF;padding:8px 18px;border-radius:8px;font-size:16px;font-weight:700;text-align:center;max-width:92%;z-index:2147483647;pointer-events:none;display:none;line-height:1.4;font-family:system-ui,-apple-system,sans-serif;text-shadow:0 2px 4px rgba(0,0,0,0.9);border:1.5px solid rgba(250,90,50,0.7);box-shadow:0 4px 14px rgba(0,0,0,0.6);';
+            playerContainer.appendChild(overlay);
+          } else if (overlay.parentElement !== playerContainer) {
+            playerContainer.appendChild(overlay);
           }
 
+          if (!window.__subIndoEnabled) {
+            overlay.style.display = 'none';
+          }
+
+          // 3. Translation Cache & Fetcher
           var cache = window.__subCache || {};
           window.__subCache = cache;
 
@@ -231,15 +254,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
               });
           }
 
+          // 4. Attach Cues & Ensure English is Active
           function attachCueHandlers() {
             var video = document.querySelector('video');
             if (!video) return;
-            video.style.transform = 'translateZ(0)';
-            video.style.willChange = 'transform';
 
             if (video.textTracks && video.textTracks.length > 0) {
               for (var i = 0; i < video.textTracks.length; i++) {
                 var track = video.textTracks[i];
+                var lang = (track.language || track.label || '').toLowerCase();
+                
+                // If Indonesian is enabled, activate English track in hidden mode so cues stream
+                if (window.__subIndoEnabled && (lang.indexOf('en') !== -1 || i === 0)) {
+                  if (track.mode === 'disabled') {
+                    track.mode = 'hidden';
+                  }
+                }
+
                 if (!track.__hooked) {
                   track.__hooked = true;
                   track.oncuechange = function() {
@@ -258,9 +289,137 @@ class _PlayerScreenState extends State<PlayerScreen> {
             }
           }
 
+          // 5. Injects "Indonesian (Bahasa Indonesia)" directly into the player's CC popup menu
+          function injectIndonesianOptionIntoPlayerCC() {
+            try {
+              var allElems = document.querySelectorAll('*');
+              var sampleItem = null;
+
+              for (var i = 0; i < allElems.length; i++) {
+                var el = allElems[i];
+                var t = (el.innerText || el.textContent || '').trim();
+                if (t === 'German' || t === 'Italian' || t === 'English' || t === 'Russian' || t === 'Spanish') {
+                  if (el.children.length <= 2 && el.offsetWidth > 0) {
+                    sampleItem = el;
+                    break;
+                  }
+                }
+              }
+
+              if (!sampleItem || !sampleItem.parentElement) return;
+              var container = sampleItem.parentElement;
+
+              if (container.querySelector('.sub-id-custom-cc')) {
+                // Already injected, update active status
+                var existing = container.querySelector('.sub-id-custom-cc');
+                if (window.__subIndoEnabled) {
+                  existing.style.color = '#FA5A32';
+                  existing.style.fontWeight = 'bold';
+                } else {
+                  existing.style.color = '';
+                  existing.style.fontWeight = 'normal';
+                }
+                return;
+              }
+
+              // Clone sampleItem to inherit player's exact font, padding, and layout
+              var indoOption = sampleItem.cloneNode(true);
+              indoOption.classList.add('sub-id-custom-cc');
+              indoOption.id = 'sub-id-option';
+
+              // Change text content to Indonesian
+              var textNodeFound = false;
+              function walkAndReplace(node) {
+                if (node.nodeType === 3 && node.nodeValue.trim().length > 0 && !textNodeFound) {
+                  node.nodeValue = 'Indonesian (Bahasa Indonesia) 🇮🇩';
+                  textNodeFound = true;
+                  return;
+                }
+                for (var c = 0; c < node.childNodes.length; c++) {
+                  walkAndReplace(node.childNodes[c]);
+                }
+              }
+              walkAndReplace(indoOption);
+              if (!textNodeFound) {
+                indoOption.innerText = 'Indonesian (Bahasa Indonesia) 🇮🇩';
+              }
+
+              if (window.__subIndoEnabled) {
+                indoOption.style.color = '#FA5A32';
+                indoOption.style.fontWeight = 'bold';
+              }
+
+              indoOption.onclick = function(ev) {
+                ev.stopPropagation();
+                window.__subIndoEnabled = true;
+
+                // Mark selected in UI
+                indoOption.style.color = '#FA5A32';
+                indoOption.style.fontWeight = 'bold';
+                var sibs = container.children;
+                for (var s = 0; s < sibs.length; s++) {
+                  if (sibs[s] !== indoOption) {
+                    sibs[s].style.color = '';
+                    sibs[s].style.fontWeight = 'normal';
+                  }
+                }
+
+                // Enable English track mode in background
+                attachCueHandlers();
+
+                // Apply cue hiding
+                if (hideStyle) {
+                  hideStyle.innerHTML = 'video::cue { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; } .jw-text-track-cue { opacity: 0 !important; display: none !important; }';
+                }
+
+                // Toast notification inside player
+                var toast = document.getElementById('sub-toast');
+                if (!toast) {
+                  toast = document.createElement('div');
+                  toast.id = 'sub-toast';
+                  toast.style.cssText = 'position:fixed;top:16%;left:50%;transform:translateX(-50%);background:rgba(250,90,50,0.92);color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;font-weight:700;z-index:2147483647;pointer-events:none;transition:opacity 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.5);';
+                  document.body.appendChild(toast);
+                }
+                toast.innerText = '✓ Subtitle Indonesia Aktif';
+                toast.style.display = 'block';
+                toast.style.opacity = '1';
+                setTimeout(function() {
+                  toast.style.opacity = '0';
+                  setTimeout(function() { toast.style.display = 'none'; }, 300);
+                }, 2200);
+              };
+
+              // Hook siblings so clicking another language disables the Indonesian overlay
+              var siblings = container.children;
+              for (var k = 0; k < siblings.length; k++) {
+                (function(sib) {
+                  if (!sib.__hookedClick) {
+                    sib.__hookedClick = true;
+                    var origClick = sib.onclick;
+                    sib.addEventListener('click', function() {
+                      window.__subIndoEnabled = false;
+                      overlay.style.display = 'none';
+                      if (hideStyle) hideStyle.innerHTML = '';
+                      indoOption.style.color = '';
+                      indoOption.style.fontWeight = 'normal';
+                    });
+                  }
+                })(siblings[k]);
+              }
+
+              // Insert Indonesian right at the top of the list!
+              container.insertBefore(indoOption, container.firstChild);
+            } catch(e) {}
+          }
+
           attachCueHandlers();
+          injectIndonesianOptionIntoPlayerCC();
+
           if (!window.__subInterval) {
-            window.__subInterval = setInterval(attachCueHandlers, 1200);
+            window.__subInterval = setInterval(function() {
+              attachCueHandlers();
+              injectIndonesianOptionIntoPlayerCC();
+            }, 800);
           }
         } catch(e) {}
       })();
@@ -824,12 +983,42 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         const SizedBox(height: 8),
                         Text(
                           _subIndoEnabled
-                              ? 'Teks dialog akan diterjemahkan secara otomatis ke Bahasa Indonesia di layar video.'
+                              ? 'Teks dialog otomatis diterjemahkan ke Bahasa Indonesia di layar video.'
                               : 'Menampilkan teks bahasa Inggris bawaan server (English CC).',
                           style: const TextStyle(
                             fontSize: 11.5,
                             color: AppColors.textSecondary,
                             height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF141724),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF222638)),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Padding(
+                                padding: EdgeInsets.only(top: 1.5),
+                                child: Icon(Icons.info_outline_rounded,
+                                    size: 14, color: Color(0xFF4EE2EC)),
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Server sumber aslinya hanya menyediakan CC bahasa asing (English, German, dll). Opsi "Indonesian" kini otomatis disuntikkan ke menu [CC] player & teks diterjemahkan real-time di layar.',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF9EA3B5),
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
