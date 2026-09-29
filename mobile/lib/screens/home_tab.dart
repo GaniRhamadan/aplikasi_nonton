@@ -63,14 +63,14 @@ class _HomeTabState extends State<HomeTab> {
 
     try {
       final results = await Future.wait([
-        _animeService.getSedangHangat(),
-        _animeService.getLanjutNonton(),
-        _animeService.getEpisodeBaru(),
-        _animeService.getJadwalHariIni(),
-        _animeService.getJasPorYu(),
-        _animeService.getJudulBaru(),
-        _animeService.getPalingDinanti(),
-        _animeService.getPalingPopuler(),
+        _animeService.getSedangHangat().catchError((_) => <AnimeItem>[]),
+        _animeService.getLanjutNonton().catchError((_) => <AnimeItem>[]),
+        _animeService.getEpisodeBaru().catchError((_) => <AnimeItem>[]),
+        _animeService.getJadwalHariIni().catchError((_) => <AnimeItem>[]),
+        _animeService.getJasPorYu().catchError((_) => AnimeService.curatedAnime.first),
+        _animeService.getJudulBaru().catchError((_) => <AnimeItem>[]),
+        _animeService.getPalingDinanti().catchError((_) => <AnimeItem>[]),
+        _animeService.getPalingPopuler().catchError((_) => <AnimeItem>[]),
       ]);
 
       if (mounted) {
@@ -86,19 +86,44 @@ class _HomeTabState extends State<HomeTab> {
             episodeLabel: 'Sampai Ep. ${h.episodeNumber}',
           )).toList();
         } else {
-          continueList = results[1] as List<AnimeItem>;
+          final defLanjut = results[1] as List<AnimeItem>;
+          continueList = defLanjut.isNotEmpty ? defLanjut : await _animeService.getLanjutNonton();
         }
 
+        final sedangHangat = (results[0] as List<AnimeItem>).isNotEmpty
+            ? (results[0] as List<AnimeItem>)
+            : await _animeService.getSedangHangat();
+
+        final episodeBaru = (results[2] as List<AnimeItem>).isNotEmpty
+            ? (results[2] as List<AnimeItem>)
+            : await _animeService.getEpisodeBaru();
+
+        final jadwal = (results[3] as List<AnimeItem>).isNotEmpty
+            ? (results[3] as List<AnimeItem>)
+            : await _animeService.getJadwalHariIni();
+
+        final judulBaru = (results[5] as List<AnimeItem>).isNotEmpty
+            ? (results[5] as List<AnimeItem>)
+            : await _animeService.getJudulBaru();
+
+        final palingDinanti = (results[6] as List<AnimeItem>).isNotEmpty
+            ? (results[6] as List<AnimeItem>)
+            : await _animeService.getPalingDinanti();
+
+        final palingPopuler = (results[7] as List<AnimeItem>).isNotEmpty
+            ? (results[7] as List<AnimeItem>)
+            : await _animeService.getPalingPopuler();
+
         setState(() {
-          _sedangHangat = results[0] as List<AnimeItem>;
+          _sedangHangat = sedangHangat;
           _lanjutNonton = continueList;
           _cuplixItems = _animeService.getCuplixItems();
-          _episodeBaru = results[2] as List<AnimeItem>;
-          _jadwalHariIni = results[3] as List<AnimeItem>;
+          _episodeBaru = episodeBaru;
+          _jadwalHariIni = jadwal;
           _jasPorYu = results[4] as AnimeItem;
-          _judulBaru = results[5] as List<AnimeItem>;
-          _palingDinanti = results[6] as List<AnimeItem>;
-          _palingPopuler = results[7] as List<AnimeItem>;
+          _judulBaru = judulBaru;
+          _palingDinanti = palingDinanti;
+          _palingPopuler = palingPopuler;
           _isLoading = false;
         });
       }
@@ -195,7 +220,7 @@ class _HomeTabState extends State<HomeTab> {
                   onMoreTap: () => widget.onNavigateTab?.call(4), // Profile/History
                 ),
                 SizedBox(
-                  height: 285,
+                  height: 315,
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     scrollDirection: Axis.horizontal,
@@ -256,7 +281,7 @@ class _HomeTabState extends State<HomeTab> {
                   onMoreTap: () => widget.onNavigateTab?.call(2), // CARI tab
                 ),
                 SizedBox(
-                  height: 285,
+                  height: 315,
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     scrollDirection: Axis.horizontal,
@@ -284,7 +309,7 @@ class _HomeTabState extends State<HomeTab> {
                   onMoreTap: () => widget.onNavigateTab?.call(1), // JADWAL tab
                 ),
                 SizedBox(
-                  height: 295,
+                  height: 325,
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     scrollDirection: Axis.horizontal,
@@ -326,7 +351,7 @@ class _HomeTabState extends State<HomeTab> {
                   onMoreTap: () => widget.onNavigateTab?.call(1),
                 ),
                 SizedBox(
-                  height: 285,
+                  height: 315,
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     scrollDirection: Axis.horizontal,
@@ -355,7 +380,7 @@ class _HomeTabState extends State<HomeTab> {
                   onMoreTap: () => widget.onNavigateTab?.call(1),
                 ),
                 SizedBox(
-                  height: 285,
+                  height: 315,
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     scrollDirection: Axis.horizontal,
@@ -384,7 +409,7 @@ class _HomeTabState extends State<HomeTab> {
                   onMoreTap: () => widget.onNavigateTab?.call(2),
                 ),
                 SizedBox(
-                  height: 285,
+                  height: 315,
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     scrollDirection: Axis.horizontal,

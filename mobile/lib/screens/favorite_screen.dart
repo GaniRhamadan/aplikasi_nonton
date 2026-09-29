@@ -31,6 +31,97 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
     'Supernatural',
   ];
 
+  static const List<AnimeItem> _seedFavorites = [
+    AnimeItem(
+      id: '21242',
+      slug: 'hatsukoi-monster-21242',
+      title: 'Hatsukoi Monster',
+      genreLabel: 'Comedy',
+      genres: ['Comedy', 'Romance'],
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx21242-5lHHNLFBsVB3.jpg',
+      views: '8.784 views',
+      favorites: '2.016 favorites',
+    ),
+    AnimeItem(
+      id: '151252',
+      slug: 'koori-zokusei-danshi-to-cool-na-douryou-151252',
+      title: 'Koori Zokusei Danshi to Cool na Douryou',
+      genreLabel: 'Comedy',
+      genres: ['Comedy', 'Romance', 'Fantasy'],
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx151252-ywrMmJG1Loc3.jpg',
+      views: '58.115 views',
+      favorites: '8.571 favorites',
+    ),
+    AnimeItem(
+      id: '6098',
+      slug: 'sora-no-manimani-6098',
+      title: 'Sora no Manimani (At The Mercy of the Sky)',
+      genreLabel: 'Comedy',
+      genres: ['Comedy', 'Romance'],
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx6098-GfPxtwnEsDAx.jpg',
+      views: '7.124 views',
+      favorites: '1.589 favorites',
+    ),
+    AnimeItem(
+      id: '147103',
+      slug: 'watashi-no-shiawase-na-kekkon-147103',
+      title: 'Watashi no Shiawase na Kekkon',
+      genreLabel: 'Drama',
+      genres: ['Drama', 'Romance', 'Fantasy'],
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx147103-Om2LOXlhHNAe.png',
+      views: '103.594 views',
+      favorites: '8.129 favorites',
+    ),
+    AnimeItem(
+      id: '101922',
+      slug: 'violet-evergarden-the-movie-101922',
+      title: 'Violet Evergarden: The Movie',
+      genreLabel: 'Drama',
+      genres: ['Drama', 'Fantasy'],
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx21827-ubzq619ZA2E9.png',
+      views: '18.488 views',
+      favorites: '5.674 favorites',
+    ),
+    AnimeItem(
+      id: '21827',
+      slug: 'violet-evergarden-21827',
+      title: 'Violet Evergarden',
+      genreLabel: 'Drama',
+      genres: ['Drama', 'Slice of Life'],
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx21827-ubzq619ZA2E9.png',
+      views: '108.485 views',
+      favorites: '11.870 favorites',
+    ),
+    AnimeItem(
+      id: '124080',
+      slug: 'horimiya-124080',
+      title: 'Horimiya',
+      genreLabel: 'Comedy',
+      genres: ['Comedy', 'Romance'],
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx124080-3i22mRVPBS0T.jpg',
+      views: '95.234 views',
+      favorites: '14.280 favorites',
+    ),
+    AnimeItem(
+      id: '137281',
+      slug: 'aharen-san-wa-hakarenai-137281',
+      title: 'Aharen-san wa Hakarenai',
+      genreLabel: 'Comedy',
+      genres: ['Comedy', 'Slice of Life'],
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx137281-i4UHcGkUi7j6.jpg',
+      views: '32.419 views',
+      favorites: '4.112 favorites',
+    ),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -40,7 +131,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
   void _loadFavorites() {
     final list = StorageService.getBookmarks();
     setState(() {
-      _bookmarks = list;
+      _bookmarks = list.isNotEmpty ? list : _seedFavorites;
       _applyFilter();
     });
   }
