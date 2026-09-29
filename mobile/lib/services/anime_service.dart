@@ -1,0 +1,665 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../models/anime_models.dart';
+
+class AnimeService {
+  static const String baseApi = 'https://hianime.at';
+  static const Map<String, String> defaultHeaders = {
+    'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept':
+        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+  };
+
+  /// Curated popular spotlight anime for instant discovery
+  static const List<AnimeItem> curatedAnime = [
+    AnimeItem(
+      id: '235',
+      slug: 'solo-leveling-235',
+      title: 'Solo Leveling',
+      posterUrl:
+          'https://cdn.anipixcdn.co/thumbnail/53adb96c287c3931b3bc41cebb003788.png',
+      subEpisodes: 12,
+      dubEpisodes: 12,
+      totalEpisodes: 12,
+      type: 'TV',
+      synopsis:
+          'In a world where hunters must battle deadly monsters to protect humanity, Sung Jinwoo, notoriously known as the weakest hunter of all mankind, finds himself in a struggle for survival.',
+    ),
+    AnimeItem(
+      id: '84',
+      slug: 'solo-leveling-season-2-arise-from-the-shadow-84',
+      title: 'Solo Leveling Season 2: Arise from the Shadow',
+      posterUrl:
+          'https://cdn.anipixcdn.co/thumbnail/e7604f5e7146522cbb54d762e15bc999.png',
+      subEpisodes: 13,
+      dubEpisodes: 13,
+      totalEpisodes: 13,
+      type: 'TV',
+      synopsis:
+          'The continuation of Sung Jinwoo journey as the Shadow Monarch, facing greater dungeons and uncovering the origin of the System.',
+    ),
+    AnimeItem(
+      id: '100',
+      slug: 'one-piece-100',
+      title: 'One Piece',
+      posterUrl:
+          'https://cdn.anipixcdn.co/thumbnail/7e6443c5b8b8ea54d3e69f8863bc97a5.png',
+      subEpisodes: 1120,
+      dubEpisodes: 1100,
+      totalEpisodes: 1120,
+      type: 'TV',
+      synopsis:
+          'Monkey D. Luffy embarks on a grand adventure with his pirate crew across the Grand Line in search of the legendary treasure known as One Piece.',
+    ),
+    AnimeItem(
+      id: '502',
+      slug: 'jujutsu-kaisen-2nd-season-502',
+      title: 'Jujutsu Kaisen Season 2',
+      posterUrl:
+          'https://cdn.anipixcdn.co/thumbnail/d76c342bca482c3aa5b8b9b8b292e8ca.png',
+      subEpisodes: 23,
+      dubEpisodes: 23,
+      totalEpisodes: 23,
+      type: 'TV',
+      synopsis:
+          'Follows the past of Satoru Gojo and Suguru Geto during their days at Tokyo Jujutsu High, and the cataclysmic Shibuya Incident.',
+    ),
+    AnimeItem(
+      id: '320',
+      slug: 'demon-slayer-kimetsu-no-yaiba-hashira-training-arc-320',
+      title: 'Demon Slayer: Hashira Training Arc',
+      posterUrl:
+          'https://cdn.anipixcdn.co/thumbnail/1922c1b92015c7e192f16a048a127f54.png',
+      subEpisodes: 8,
+      dubEpisodes: 8,
+      totalEpisodes: 8,
+      type: 'TV',
+      synopsis:
+          'Tanjiro undergoes rigorous training under the highest-ranking swordsmen of the Demon Slayer Corps, the Hashira, preparing for the upcoming final battle.',
+    ),
+    AnimeItem(
+      id: '710',
+      slug: 'dandadan-710',
+      title: 'DanDaDan',
+      posterUrl:
+          'https://cdn.anipixcdn.co/thumbnail/7c1264b38346e01ea319a27e02b704c7.png',
+      subEpisodes: 12,
+      dubEpisodes: 12,
+      totalEpisodes: 12,
+      type: 'TV',
+      synopsis:
+          'High schoolers Momo Ayase, who believes in ghosts, and Okarun, who believes in aliens, find themselves entangled in bizarre supernatural occurrences.',
+    ),
+  ];
+
+  static const List<Map<String, String>> allGenres = [
+    {'name': 'Semua', 'slug': ''},
+    {'name': 'Action', 'slug': 'action'},
+    {'name': 'Adventure', 'slug': 'adventure'},
+    {'name': 'Cars', 'slug': 'cars'},
+    {'name': 'Comedy', 'slug': 'comedy'},
+    {'name': 'Dementia', 'slug': 'dementia'},
+    {'name': 'Demons', 'slug': 'demons'},
+    {'name': 'Drama', 'slug': 'drama'},
+    {'name': 'Ecchi', 'slug': 'ecchi'},
+    {'name': 'Fantasy', 'slug': 'fantasy'},
+    {'name': 'Game', 'slug': 'game'},
+    {'name': 'Harem', 'slug': 'harem'},
+    {'name': 'Historical', 'slug': 'historical'},
+    {'name': 'Horror', 'slug': 'horror'},
+    {'name': 'Isekai', 'slug': 'isekai'},
+    {'name': 'Josei', 'slug': 'josei'},
+    {'name': 'Kids', 'slug': 'kids'},
+    {'name': 'Magic', 'slug': 'magic'},
+    {'name': 'Martial Arts', 'slug': 'martial-arts'},
+    {'name': 'Mecha', 'slug': 'mecha'},
+    {'name': 'Military', 'slug': 'military'},
+    {'name': 'Music', 'slug': 'music'},
+    {'name': 'Mystery', 'slug': 'mystery'},
+    {'name': 'Parody', 'slug': 'parody'},
+    {'name': 'Police', 'slug': 'police'},
+    {'name': 'Psychological', 'slug': 'psychological'},
+    {'name': 'Romance', 'slug': 'romance'},
+    {'name': 'Samurai', 'slug': 'samurai'},
+    {'name': 'School', 'slug': 'school'},
+    {'name': 'Sci-Fi', 'slug': 'sci-fi'},
+    {'name': 'Seinen', 'slug': 'seinen'},
+    {'name': 'Shoujo', 'slug': 'shoujo'},
+    {'name': 'Shoujo Ai', 'slug': 'shoujo-ai'},
+    {'name': 'Shounen', 'slug': 'shounen'},
+    {'name': 'Shounen Ai', 'slug': 'shounen-ai'},
+    {'name': 'Slice of Life', 'slug': 'slice-of-life'},
+    {'name': 'Space', 'slug': 'space'},
+    {'name': 'Sports', 'slug': 'sports'},
+    {'name': 'Super Power', 'slug': 'super-power'},
+    {'name': 'Supernatural', 'slug': 'supernatural'},
+    {'name': 'Thriller', 'slug': 'thriller'},
+    {'name': 'Vampire', 'slug': 'vampire'},
+    {'name': 'Workplace', 'slug': 'workplace'},
+  ];
+
+  /// Search anime using HiAnime scraping endpoint
+  Future<List<AnimeItem>> searchAnime(String query, {int page = 1}) async {
+    final cleanQuery = query.trim();
+    if (cleanQuery.isEmpty) return getPopularAnime();
+
+    try {
+      final url = Uri.parse(
+          '$baseApi/search?keyword=${Uri.encodeQueryComponent(cleanQuery)}&page=$page');
+      final response = await http
+          .get(url, headers: defaultHeaders)
+          .timeout(const Duration(seconds: 12));
+
+      if (response.statusCode == 200) {
+        return _parseSearchHtml(response.body);
+      }
+    } catch (_) {}
+
+    return curatedAnime
+        .where((a) => a.title.toLowerCase().contains(cleanQuery.toLowerCase()))
+        .toList();
+  }
+
+  /// In-memory cache for anime genres to make repeated lookups instant
+  static final Map<String, Set<String>> _animeGenreCache = {};
+
+  /// Genre specificity hierarchy for picking the most targeted candidate source
+  static const Map<String, int> _genreSpecificity = {
+    'isekai': 1,
+    'vampire': 2,
+    'mecha': 3,
+    'sports': 4,
+    'harem': 5,
+    'reverse-harem': 6,
+    'ecchi': 7,
+    'music': 8,
+    'military': 9,
+    'game': 10,
+    'video-game': 10,
+    'martial-arts': 11,
+    'super-power': 12,
+    'historical': 13,
+    'parody': 14,
+    'space': 15,
+    'samurai': 16,
+    'police': 17,
+    'psychological': 18,
+    'horror': 19,
+    'mystery': 20,
+    'thriller': 21,
+    'suspense': 22,
+    'demons': 23,
+    'magic': 24,
+    'school': 30,
+    'slice-of-life': 31,
+    'shoujo': 35,
+    'shounen': 40,
+    'seinen': 41,
+    'supernatural': 50,
+    'drama': 60,
+    'romance': 70,
+    'fantasy': 80,
+    'adventure': 85,
+    'action': 90,
+    'comedy': 100,
+  };
+
+  /// Check whether an anime's genre set satisfies a required genre slug
+  static bool _matchesGenre(Set<String> animeGenres, String requiredSlug) {
+    final req = requiredSlug.toLowerCase().trim();
+    final reqClean = req.replaceAll('-', '').replaceAll(' ', '');
+
+    for (final g in animeGenres) {
+      final gNorm = g.toLowerCase().trim();
+      final gClean = gNorm.replaceAll('-', '').replaceAll(' ', '');
+
+      if (gNorm == req || gClean == reqClean) return true;
+
+      // Handle common aliases or compound sub-genres
+      if (req == 'harem' && (gNorm == 'harem' || gNorm == 'reverse-harem')) {
+        return true;
+      }
+      if (req == 'video-game' && (gNorm == 'video-game' || gNorm == 'game')) {
+        return true;
+      }
+      if (req == 'game' && (gNorm == 'video-game' || gNorm == 'game')) {
+        return true;
+      }
+      if (req == 'martial-arts' &&
+          (gNorm == 'martial-arts' || gNorm == 'combat-sports')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Get verified genres for an anime ID using HiAnime qtip API
+  Future<Set<String>> getAnimeGenres(String animeId) async {
+    final cleanId = animeId.contains('-')
+        ? (RegExp(r'-(\d+)$').firstMatch(animeId)?.group(1) ?? animeId)
+        : animeId;
+
+    if (_animeGenreCache.containsKey(cleanId)) {
+      return _animeGenreCache[cleanId]!;
+    }
+
+    for (int attempt = 0; attempt < 2; attempt++) {
+      try {
+        final url = Uri.parse('$baseApi/api/theme/anime/qtip?animeId=$cleanId');
+        final response = await http
+            .get(url, headers: defaultHeaders)
+            .timeout(const Duration(seconds: 5));
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          final html = data['html']?.toString() ?? '';
+          final genreMatches =
+              RegExp(r'href="[^"]*\/genres\/([^"]+)"').allMatches(html);
+
+          final Set<String> genres = {};
+          for (final m in genreMatches) {
+            final slug = m.group(1)?.toLowerCase().trim();
+            if (slug != null && slug.isNotEmpty) {
+              genres.add(slug);
+            }
+          }
+
+          if (genres.isNotEmpty) {
+            _animeGenreCache[cleanId] = genres;
+            return genres;
+          }
+        }
+      } catch (_) {}
+    }
+
+    return const {};
+  }
+
+  /// Fetch candidate anime list from a specific endpoint
+  Future<List<AnimeItem>> _fetchCandidatesFromUrl(String url) async {
+    try {
+      final response = await http
+          .get(Uri.parse(url), headers: defaultHeaders)
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        return _parseSearchHtml(response.body);
+      }
+    } catch (_) {}
+    return const [];
+  }
+
+  /// Get anime matching ALL selected genres (Strict AND-logic intersection)
+  Future<List<AnimeItem>> getAnimeByGenres(List<String> genreSlugs,
+      {int page = 1}) async {
+    final validSlugs = genreSlugs
+        .map((s) => s.trim().toLowerCase())
+        .where((s) => s.isNotEmpty && s != 'semua')
+        .toList();
+
+    if (validSlugs.isEmpty) {
+      return getPopularAnime();
+    }
+
+    if (validSlugs.length == 1) {
+      return getAnimeByGenre(validSlugs.first, page: page);
+    }
+
+    try {
+      // 1. Sort genres by specificity so the rarest/most specific genre is primary
+      final sortedSlugs = List<String>.from(validSlugs)
+        ..sort((a, b) =>
+            (_genreSpecificity[a] ?? 50).compareTo(_genreSpecificity[b] ?? 50));
+      final primary = sortedSlugs.first;
+
+      // 2. Fetch candidates concurrently from primary genre pages and filter endpoint
+      final queryParams = validSlugs
+          .map((s) => 'genre%5B%5D=${Uri.encodeQueryComponent(s)}')
+          .join('&');
+
+      final fetchResults = await Future.wait([
+        _fetchCandidatesFromUrl('$baseApi/genres/$primary?page=$page'),
+        _fetchCandidatesFromUrl('$baseApi/genres/$primary?page=${page + 1}'),
+        _fetchCandidatesFromUrl('$baseApi/filter?$queryParams&page=$page'),
+      ]);
+
+      // Deduplicate candidates preserving natural popularity rank
+      final List<AnimeItem> candidates = [];
+      final Set<String> seenKeys = {};
+
+      for (final list in fetchResults) {
+        for (final item in list) {
+          final key = item.id.isNotEmpty ? item.id : item.slug;
+          if (seenKeys.add(key)) {
+            candidates.add(item);
+          }
+        }
+      }
+
+      if (candidates.isNotEmpty) {
+        // 3. Concurrently fetch genres for candidates (using fast cache + qtip API)
+        final genreFutures =
+            candidates.map((anime) => getAnimeGenres(anime.id));
+        final allAnimeGenres = await Future.wait(genreFutures);
+
+        // 4. Strictly filter to anime that match ALL required genres
+        final List<AnimeItem> matches = [];
+        for (int i = 0; i < candidates.length; i++) {
+          final anime = candidates[i];
+          final animeGenres = allAnimeGenres[i];
+
+          // Anime must contain EVERY selected genre
+          final matchesAll = validSlugs.every(
+            (slug) => _matchesGenre(animeGenres, slug),
+          );
+
+          if (matchesAll) {
+            matches.add(anime.copyWith(genres: animeGenres.toList()));
+          }
+        }
+
+        if (matches.isNotEmpty) {
+          return matches;
+        }
+      }
+    } catch (_) {}
+
+    return getPopularAnime();
+  }
+
+  /// Get anime by single genre slug from HiAnime
+  Future<List<AnimeItem>> getAnimeByGenre(String genreSlug, {int page = 1}) async {
+    final slug = genreSlug.trim().toLowerCase();
+    if (slug.isEmpty || slug == 'semua') {
+      return getPopularAnime();
+    }
+
+    try {
+      final url = Uri.parse('$baseApi/genres/$slug?page=$page');
+      final response = await http
+          .get(url, headers: defaultHeaders)
+          .timeout(const Duration(seconds: 12));
+
+      if (response.statusCode == 200) {
+        final results = _parseSearchHtml(response.body);
+        if (results.isNotEmpty) return results;
+      }
+    } catch (_) {}
+
+    return getPopularAnime();
+  }
+
+  /// Get live recently updated and popular anime list
+  Future<List<AnimeItem>> getPopularAnime() async {
+    try {
+      final url = Uri.parse('$baseApi/recently-updated');
+      final response = await http
+          .get(url, headers: defaultHeaders)
+          .timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final parsed = _parseSearchHtml(response.body);
+        if (parsed.isNotEmpty) return parsed;
+      }
+    } catch (_) {}
+
+    try {
+      final url = Uri.parse('$baseApi/top-airing');
+      final response = await http
+          .get(url, headers: defaultHeaders)
+          .timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final parsed = _parseSearchHtml(response.body);
+        if (parsed.isNotEmpty) return parsed;
+      }
+    } catch (_) {}
+
+    return curatedAnime;
+  }
+
+  /// Parse search HTML page
+  static List<AnimeItem> _parseSearchHtml(String html) {
+    final List<AnimeItem> items = [];
+    final itemRegex = RegExp(
+      r'<div class="flw-item[^"]*">([\s\S]*?)<div class="clearfix"><\/div>',
+      multiLine: true,
+    );
+
+    final matches = itemRegex.allMatches(html);
+    for (final match in matches) {
+      final block = match.group(1) ?? '';
+
+      // Title & Slug
+      final titleMatch = RegExp(
+        r'<h3 class="film-name">\s*<a href="[^"]*\/([^"\/]+)"\s*title="([^"]+)"',
+      ).firstMatch(block);
+
+      if (titleMatch == null) continue;
+      final slug = titleMatch.group(1) ?? '';
+      var title = titleMatch.group(2) ?? '';
+      title = _decodeHtmlEntities(title);
+
+      // Extract ID from slug (e.g., "solo-leveling-235" -> "235")
+      final idMatch = RegExp(r'-(\d+)$').firstMatch(slug);
+      final id = idMatch?.group(1) ?? slug;
+
+      // Poster
+      final posterMatch =
+          RegExp(r'<img[^>]+src="([^"]+)"[^>]+class="film-poster-img"').firstMatch(block);
+      final posterUrl = posterMatch?.group(1) ?? '';
+
+      // Sub / Dub / Eps count
+      final subMatch =
+          RegExp(r'class="[^"]*tick-sub[^"]*">.*?(\d+)<\/div>').firstMatch(block);
+      final dubMatch =
+          RegExp(r'class="[^"]*tick-dub[^"]*">.*?(\d+)<\/div>').firstMatch(block);
+      final epsMatch =
+          RegExp(r'class="[^"]*tick-eps[^"]*">.*?(\d+)<\/div>').firstMatch(block);
+
+      final subCount = int.tryParse(subMatch?.group(1) ?? '0') ?? 0;
+      final dubCount = int.tryParse(dubMatch?.group(1) ?? '0') ?? 0;
+      final epsCount = int.tryParse(epsMatch?.group(1) ?? '0') ?? subCount;
+
+      items.add(AnimeItem(
+        id: id,
+        slug: slug,
+        title: title,
+        posterUrl: posterUrl,
+        subEpisodes: subCount,
+        dubEpisodes: dubCount,
+        totalEpisodes: epsCount,
+      ));
+    }
+
+    return items;
+  }
+
+  /// Get episode list for an anime ID
+  Future<List<EpisodeItem>> getEpisodes(String animeId, String animeSlug) async {
+    // If animeId has slug prefix, extract numeric ID
+    final numericId = animeId.contains('-')
+        ? (RegExp(r'-(\d+)$').firstMatch(animeId)?.group(1) ?? animeId)
+        : animeId;
+
+    try {
+      final url = Uri.parse('$baseApi/api/theme/episode/list/$numericId');
+      final response = await http
+          .get(url, headers: defaultHeaders)
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        final html = decoded['html'] ?? response.body;
+
+        final List<EpisodeItem> episodes = [];
+        final epRegex = RegExp(
+          r'class="[^"]*ep-item[^"]*"\s+data-number="([^"]+)"\s+data-id="([^"]+)"[\s\S]*?<div class="ep-name[^"]*"\s+[^>]*title="([^"]*)"',
+        );
+
+        final matches = epRegex.allMatches(html);
+        for (final m in matches) {
+          final epNo = int.tryParse(m.group(1) ?? '1') ?? 1;
+          final epId = m.group(2) ?? '';
+          var epTitle = m.group(3) ?? 'Episode $epNo';
+          epTitle = _decodeHtmlEntities(epTitle);
+
+          episodes.add(EpisodeItem(
+            id: epId,
+            number: epNo,
+            title: epTitle.isEmpty ? 'Episode $epNo' : epTitle,
+            slug: animeSlug,
+          ));
+        }
+
+        if (episodes.isNotEmpty) {
+          // Sort by episode number
+          episodes.sort((a, b) => a.number.compareTo(b.number));
+          return episodes;
+        }
+      }
+    } catch (_) {}
+
+    // Fallback: Generate sequential episode entries if network issue
+    return List.generate(
+      12,
+      (index) => EpisodeItem(
+        id: 'ep_${index + 1}',
+        number: index + 1,
+        title: 'Episode ${index + 1}',
+        slug: animeSlug,
+      ),
+    );
+  }
+
+  /// Get all available stream servers for an episode, prioritized by speed (HD-1 fast CDN first)
+  Future<List<StreamServerItem>> getStreamServers(String episodeId,
+      {bool isDub = false}) async {
+    try {
+      final url =
+          Uri.parse('$baseApi/api/theme/episode/servers?episodeId=$episodeId');
+      final response = await http
+          .get(url, headers: defaultHeaders)
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        final html = decoded['html'] ?? '';
+
+        final targetType = isDub ? 'dub' : 'sub';
+        final serverRegex = RegExp(
+          r'data-type="([^"]+)"[^>]*data-server-name="([^"]+)"[^>]*data-hash="([^"]+)"',
+        );
+
+        final List<StreamServerItem> servers = [];
+        final matches = serverRegex.allMatches(html);
+
+        for (final m in matches) {
+          final type = m.group(1) ?? 'sub';
+          final name = m.group(2) ?? 'Server';
+          final hash = m.group(3) ?? '';
+
+          if (type == targetType) {
+            try {
+              final embedUrl = utf8.decode(base64.decode(hash));
+              servers.add(StreamServerItem(
+                name: name,
+                type: type,
+                embedUrl: embedUrl,
+              ));
+            } catch (_) {}
+          }
+        }
+
+        // If preferred audio type has no servers, fallback to all available
+        if (servers.isEmpty) {
+          for (final m in matches) {
+            final type = m.group(1) ?? 'sub';
+            final name = m.group(2) ?? 'Server';
+            final hash = m.group(3) ?? '';
+            try {
+              final embedUrl = utf8.decode(base64.decode(hash));
+              servers.add(StreamServerItem(
+                name: name,
+                type: type,
+                embedUrl: embedUrl,
+              ));
+            } catch (_) {}
+          }
+        }
+
+        // Sort so the fastest CDN servers (HD-1, HD-2, Vidstream) are primary
+        servers.sort((a, b) {
+          int priority(String n) {
+            final lower = n.toLowerCase();
+            if (lower.contains('hd-1')) return 1;
+            if (lower.contains('hd-2')) return 2;
+            if (lower.contains('vidstream')) return 3;
+            if (lower.contains('zoko')) return 4;
+            return 5;
+          }
+
+          return priority(a.name).compareTo(priority(b.name));
+        });
+
+        return servers;
+      }
+    } catch (_) {}
+    return const [];
+  }
+
+  /// Extract direct HLS master.m3u8 stream from ZokoAnime embed page for external native player
+  Future<String?> getDirectM3u8Stream(String zokoEmbedUrl) async {
+    try {
+      final response = await http.get(
+        Uri.parse(zokoEmbedUrl),
+        headers: {
+          ...defaultHeaders,
+          'Referer': 'https://hianime.at/',
+        },
+      ).timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final blobMatch =
+            RegExp(r'window\.__P="([^"]+)"').firstMatch(response.body);
+        if (blobMatch != null) {
+          final blob = blobMatch.group(1) ?? '';
+          final rawBytes = base64.decode(blob);
+          const key = 'otaku-embed-v1';
+          final keyBytes = key.codeUnits;
+          final deobf = List<int>.filled(rawBytes.length, 0);
+          for (int i = 0; i < rawBytes.length; i++) {
+            deobf[i] = rawBytes[i] ^ keyBytes[i % keyBytes.length];
+          }
+          final jsonString = utf8.decode(deobf);
+          final data = json.decode(jsonString);
+          final src = data['src']?.toString();
+          if (src != null && src.isNotEmpty) {
+            return src;
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Get stream servers and embed player URL (HD-1 fast CDN by default)
+  Future<String?> getStreamEmbedUrl(String episodeId,
+      {bool isDub = false}) async {
+    final servers = await getStreamServers(episodeId, isDub: isDub);
+    if (servers.isNotEmpty) {
+      return servers.first.embedUrl;
+    }
+    return null;
+  }
+
+  static String _decodeHtmlEntities(String text) {
+    return text
+        .replaceAll('&#039;', "'")
+        .replaceAll('&quot;', '"')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>');
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "latest_version": "1.0.2",
+  "version_code": 3,
+  "download_url": "https://github.com/GaniRhamadan/aplikasi_nonton/releases/download/v1.0.2/AniMobile.apk",
+  "changelog": "• Pemutar video jauh lebih cepat dengan server HD-1 CDN\n• Fitur ganti server video instan di layar pemutar\n• Ekstraksi stream video langsung (M3U8) untuk MPV/VLC\n• Sistem periksa pembaruan otomatis (In-App OTA Update)"
+}
