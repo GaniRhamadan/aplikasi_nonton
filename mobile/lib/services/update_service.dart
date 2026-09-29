@@ -31,8 +31,8 @@ class UpdateInfo {
 
 class UpdateService {
   /// Current installed version of AniMobile
-  static const String currentVersion = '1.0.1';
-  static const int currentVersionCode = 2;
+  static const String currentVersion = '1.0.2';
+  static const int currentVersionCode = 3;
 
   /// Default update manifest endpoint (hosted on user's GitHub repo)
   static const String defaultUpdateUrl =
