@@ -88,12 +88,12 @@ class AnimeHistoryCard extends StatelessWidget {
                                 item.animePoster,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) =>
-                                    const Center(
+                                    Center(
                                   child: Icon(Icons.movie,
                                       color: AppColors.textMuted, size: 28),
                                 ),
                               )
-                            : const Center(
+                            : Center(
                                 child: Icon(Icons.movie,
                                     color: AppColors.textMuted, size: 28),
                               ),
@@ -131,7 +131,7 @@ class AnimeHistoryCard extends StatelessWidget {
                         item.animeTitle,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -183,7 +183,7 @@ class AnimeHistoryCard extends StatelessWidget {
                           item.episodeTitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 11.5,
                           ),
@@ -194,12 +194,12 @@ class AnimeHistoryCard extends StatelessWidget {
                       // Timestamp & Watched status
                       Row(
                         children: [
-                          const Icon(Icons.access_time_rounded,
+                          Icon(Icons.access_time_rounded,
                               size: 12, color: AppColors.textMuted),
                           const SizedBox(width: 4),
                           Text(
                             _formatTimestamp(item.timestamp),
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textMuted,
                               fontSize: 11,
                             ),
@@ -260,7 +260,7 @@ class AnimeHistoryCard extends StatelessWidget {
                           const Spacer(),
                           if (onDelete != null)
                             IconButton(
-                              icon: const Icon(Icons.delete_outline_rounded,
+                              icon: Icon(Icons.delete_outline_rounded,
                                   size: 18, color: AppColors.textMuted),
                               tooltip: 'Hapus dari Riwayat',
                               onPressed: onDelete,

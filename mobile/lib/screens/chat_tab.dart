@@ -80,7 +80,7 @@ class ChatTab extends StatelessWidget {
                   child: const Icon(Icons.forum_rounded, color: Colors.white, size: 24),
                 ),
                 const SizedBox(width: 14),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -108,7 +108,7 @@ class ChatTab extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          const Text(
+          Text(
             'Ruang Obrolan Populer',
             style: TextStyle(
               color: AppColors.textPrimary,
@@ -139,7 +139,7 @@ class ChatTab extends StatelessWidget {
                 ),
                 title: Text(
                   room['title'] as String,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -149,7 +149,7 @@ class ChatTab extends StatelessWidget {
                   room['subtitle'] as String,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,
                   ),
@@ -169,7 +169,7 @@ class ChatTab extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       room['members'] as String,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textMuted,
                         fontSize: 10,
                       ),

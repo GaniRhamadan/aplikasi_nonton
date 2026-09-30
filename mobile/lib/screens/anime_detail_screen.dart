@@ -160,13 +160,13 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                               errorBuilder: (context, error, stackTrace) =>
                                   Container(
                                 color: AppColors.surfaceMuted,
-                                child: const Icon(Icons.movie,
+                                child: Icon(Icons.movie,
                                     color: AppColors.textMuted),
                               ),
                             )
                           : Container(
                               color: AppColors.surfaceMuted,
-                              child: const Icon(Icons.movie,
+                              child: Icon(Icons.movie,
                                   color: AppColors.textMuted),
                             ),
                     ),
@@ -182,7 +182,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                           widget.anime.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
@@ -201,7 +201,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                               ),
                               child: Text(
                                 widget.anime.type,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
@@ -212,7 +212,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                             if (widget.anime.totalEpisodes > 0)
                               Text(
                                 '${widget.anime.totalEpisodes} Episode',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 12,
                                 ),
@@ -373,7 +373,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Sinopsis',
                       style: TextStyle(
                         color: AppColors.textPrimary,
@@ -384,7 +384,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                     const SizedBox(height: 6),
                     Text(
                       widget.anime.synopsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 13,
                         height: 1.45,
@@ -402,7 +402,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
               children: [
                 Text(
                   'Daftar Episode (${_episodes.length})',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -438,7 +438,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
               onChanged: _filterEpisodes,
               decoration: InputDecoration(
                 hintText: 'Cari nomor atau judul episode...',
-                prefixIcon: const Icon(Icons.search,
+                prefixIcon: Icon(Icons.search,
                     color: AppColors.textSecondary, size: 20),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
@@ -475,7 +475,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppColors.border),
                 ),
-                child: const Center(
+                child: Center(
                   child: Text(
                     'Tidak ada episode yang sesuai pencarian.',
                     style: TextStyle(

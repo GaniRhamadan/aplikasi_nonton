@@ -180,7 +180,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                 color: AppColors.accent, size: 24),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Text(
               'Pembaruan Tersedia',
               style: TextStyle(
@@ -206,12 +206,12 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                   color: AppColors.surfaceMuted,
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Text(
+                child: Text(
                   'v${UpdateService.currentVersion}',
                   style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
               ),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(horizontal: 6),
                 child: Icon(Icons.arrow_forward_rounded,
                     size: 14, color: AppColors.textMuted),
@@ -236,7 +236,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
           ),
           const SizedBox(height: 12),
 
-          const Text(
+          Text(
             'Catatan Pembaruan:',
             style: TextStyle(
               fontSize: 13,
@@ -254,7 +254,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             ),
             child: Text(
               widget.updateInfo.changelog,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12.5,
                 color: AppColors.textSecondary,
                 height: 1.4,
@@ -274,7 +274,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             const SizedBox(height: 8),
             Text(
               _statusMessage,
-              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
           ],
         ],
@@ -283,7 +283,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
         if (!_isDownloading) ...[
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
+            child: Text(
               'Nanti Saja',
               style: TextStyle(color: AppColors.textSecondary),
             ),

@@ -38,6 +38,69 @@ class _SettingsTabState extends State<SettingsTab> {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
+          // Section 0: Tema & Tampilan
+          _buildSectionHeader('Tema & Tampilan'),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: ValueListenableBuilder<ThemeMode>(
+              valueListenable: AppTheme.themeNotifier,
+              builder: (context, currentMode, _) {
+                return ListTile(
+                  leading: Icon(
+                    currentMode == ThemeMode.dark
+                        ? Icons.dark_mode_rounded
+                        : Icons.light_mode_rounded,
+                    color: currentMode == ThemeMode.dark
+                        ? const Color(0xFFFFCC00)
+                        : AppColors.accent,
+                  ),
+                  title: Text(
+                    'Tema Aplikasi',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  subtitle: Text(
+                    currentMode == ThemeMode.dark
+                        ? 'Mode Gelap (Dark Mode)'
+                        : 'Mode Cerah (Light Mode)',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  trailing: DropdownButton<ThemeMode>(
+                    value: currentMode,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(
+                        value: ThemeMode.dark,
+                        child: Text('Mode Gelap'),
+                      ),
+                      DropdownMenuItem(
+                        value: ThemeMode.light,
+                        child: Text('Mode Cerah'),
+                      ),
+                    ],
+                    onChanged: (mode) {
+                      if (mode != null) {
+                        StorageService.setThemeMode(mode);
+                        setState(() {});
+                      }
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // Section 1: Playback Preferences
           _buildSectionHeader('Preferensi Pemutaran'),
           Container(
@@ -50,7 +113,7 @@ class _SettingsTabState extends State<SettingsTab> {
               children: [
                 // Subtitle Language preference
                 ListTile(
-                  title: const Text(
+                  title: Text(
                     'Bahasa Subtitle Default',
                     style: TextStyle(
                       color: AppColors.textPrimary,
@@ -62,7 +125,7 @@ class _SettingsTabState extends State<SettingsTab> {
                     _subLang == 'id'
                         ? 'Bahasa Indonesia (Terjemahan Otomatis)'
                         : 'English (Teks Asli)',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
                     ),
@@ -88,11 +151,11 @@ class _SettingsTabState extends State<SettingsTab> {
                     },
                   ),
                 ),
-                const Divider(height: 1, color: AppColors.border),
+                Divider(height: 1, color: AppColors.border),
 
                 // Audio preference
                 SwitchListTile(
-                  title: const Text(
+                  title: Text(
                     'Audio Dubbing (Inggris)',
                     style: TextStyle(
                       color: AppColors.textPrimary,
@@ -104,7 +167,7 @@ class _SettingsTabState extends State<SettingsTab> {
                     _isDub
                         ? 'Memilih audio Dubbing jika tersedia'
                         : 'Memilih audio Subtitle Jepang (Bawaan)',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
                     ),
@@ -116,11 +179,11 @@ class _SettingsTabState extends State<SettingsTab> {
                     StorageService.setDub(val);
                   },
                 ),
-                const Divider(height: 1, color: AppColors.border),
+                Divider(height: 1, color: AppColors.border),
 
                 // Player preference
                 ListTile(
-                  title: const Text(
+                  title: Text(
                     'Pemutar Video Utama',
                     style: TextStyle(
                       color: AppColors.textPrimary,
@@ -132,7 +195,7 @@ class _SettingsTabState extends State<SettingsTab> {
                     _player == 'internal'
                         ? 'Pemutar Internal Aplikasi (WebView)'
                         : 'Pemutar Eksternal (MPV / VLC)',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
                     ),
@@ -158,11 +221,11 @@ class _SettingsTabState extends State<SettingsTab> {
                     },
                   ),
                 ),
-                const Divider(height: 1, color: AppColors.border),
+                Divider(height: 1, color: AppColors.border),
 
                 // Video quality
                 ListTile(
-                  title: const Text(
+                  title: Text(
                     'Kualitas Video Default',
                     style: TextStyle(
                       color: AppColors.textPrimary,
@@ -172,7 +235,7 @@ class _SettingsTabState extends State<SettingsTab> {
                   ),
                   subtitle: Text(
                     'Kualitas: $_quality',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
                     ),
@@ -209,7 +272,7 @@ class _SettingsTabState extends State<SettingsTab> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.border),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
@@ -274,7 +337,7 @@ class _SettingsTabState extends State<SettingsTab> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Versi Aplikasi',
                       style: TextStyle(
                         color: AppColors.textPrimary,
@@ -284,7 +347,7 @@ class _SettingsTabState extends State<SettingsTab> {
                     ),
                     Text(
                       'v${UpdateService.currentVersion} (Clean Minimalist)',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 13,
                       ),
@@ -292,7 +355,7 @@ class _SettingsTabState extends State<SettingsTab> {
                   ],
                 ),
                 const SizedBox(height: 14),
-                const Divider(height: 1, color: AppColors.border),
+                Divider(height: 1, color: AppColors.border),
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
@@ -348,9 +411,9 @@ class _SettingsTabState extends State<SettingsTab> {
                             'Seluruh kode sumber bebas digunakan, dimodifikasi, dan didistribusikan ulang sesuai dengan ketentuan GNU General Public License v3.0.',
                       );
                     },
-                    icon: const Icon(Icons.info_outline_rounded,
+                    icon: Icon(Icons.info_outline_rounded,
                         size: 16, color: AppColors.textSecondary),
-                    label: const Text(
+                    label: Text(
                       'Lisensi & Kredit Open Source (GPLv3)',
                       style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 12),
@@ -372,7 +435,7 @@ class _SettingsTabState extends State<SettingsTab> {
       padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           color: AppColors.textSecondary,
           fontSize: 13,
           fontWeight: FontWeight.w700,

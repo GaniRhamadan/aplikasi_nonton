@@ -170,7 +170,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
         backgroundColor: AppColors.canvas,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
@@ -209,7 +209,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   'Favorit',
                   style: TextStyle(
                     color: AppColors.textPrimary,
@@ -249,7 +249,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
           ),
           // Grid icon
           IconButton(
-            icon: const Icon(
+            icon: Icon(
               Icons.grid_view_rounded,
               color: AppColors.textSecondary,
               size: 20,
@@ -350,13 +350,13 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                                 errorBuilder:
                                     (context, error, stackTrace) => Container(
                                   color: AppColors.surfaceMuted,
-                                  child: const Icon(Icons.movie,
+                                  child: Icon(Icons.movie,
                                       color: AppColors.textMuted, size: 20),
                                 ),
                               )
                             : Container(
                                 color: AppColors.surfaceMuted,
-                                child: const Icon(Icons.movie,
+                                child: Icon(Icons.movie,
                                     color: AppColors.textMuted, size: 20),
                               ),
                       ),
@@ -375,14 +375,14 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
               child: Center(
                 child: Column(
                   children: [
-                    const Icon(Icons.bookmark_outline_rounded,
+                    Icon(Icons.bookmark_outline_rounded,
                         size: 48, color: AppColors.textMuted),
                     const SizedBox(height: 12),
                     Text(
                       _selectedGenre == 'Semua'
                           ? 'Belum ada anime favorit'
                           : 'Tidak ada favorit genre $_selectedGenre',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -400,9 +400,9 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                 physics: const NeverScrollableScrollPhysics(),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
-                  childAspectRatio: 0.46,
+                  childAspectRatio: 0.41,
                   crossAxisSpacing: 10,
-                  mainAxisSpacing: 16,
+                  mainAxisSpacing: 14,
                 ),
                 itemCount: _filteredBookmarks.length,
                 itemBuilder: (context, index) {
@@ -424,9 +424,9 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                       children: [
                         // Poster with smooth rounded corners (matching screenshot 1)
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(12),
                           child: AspectRatio(
-                            aspectRatio: 0.72,
+                            aspectRatio: 0.70,
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
@@ -438,14 +438,14 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                                             (context, error, stackTrace) =>
                                                 Container(
                                           color: AppColors.surfaceMuted,
-                                          child: const Icon(
+                                          child: Icon(
                                               Icons.movie_filter_rounded,
                                               color: AppColors.textMuted),
                                         ),
                                       )
                                     : Container(
                                         color: AppColors.surfaceMuted,
-                                        child: const Icon(
+                                        child: Icon(
                                             Icons.movie_filter_rounded,
                                             color: AppColors.textMuted),
                                       ),
@@ -501,7 +501,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 4),
 
                         // Genre in Orange (matching screenshot 1)
                         Text(
@@ -512,7 +512,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: AppColors.accent,
-                            fontSize: 11,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -523,20 +523,20 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                           anime.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textPrimary,
-                            fontSize: 12.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                             height: 1.2,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 3),
 
                         // Red Views
                         Row(
                           children: [
                             const Icon(Icons.play_circle_fill_rounded,
-                                size: 12, color: AppColors.viewsRed),
+                                size: 11, color: AppColors.viewsRed),
                             const SizedBox(width: 3),
                             Expanded(
                               child: Text(
@@ -545,7 +545,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: AppColors.viewsRed,
-                                  fontSize: 10.5,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -558,7 +558,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                         Row(
                           children: [
                             const Icon(Icons.star_rounded,
-                                size: 13, color: AppColors.favYellow),
+                                size: 12, color: AppColors.favYellow),
                             const SizedBox(width: 3),
                             Expanded(
                               child: Text(
@@ -567,7 +567,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: AppColors.favYellow,
-                                  fontSize: 10.5,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),

@@ -84,7 +84,7 @@ class _LibraryTabState extends State<LibraryTab>
         actions: [
           if (_history.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.delete_outline,
+              icon: Icon(Icons.delete_outline,
                   color: AppColors.textSecondary),
               tooltip: 'Hapus Riwayat',
               onPressed: _clearHistory,
@@ -186,7 +186,7 @@ class _LibraryTabState extends State<LibraryTab>
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -196,7 +196,7 @@ class _LibraryTabState extends State<LibraryTab>
             Text(
               description,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 13,
                 height: 1.4,

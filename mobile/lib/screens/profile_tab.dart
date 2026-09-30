@@ -48,7 +48,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   const Icon(Icons.notifications_active_rounded,
                       color: AppColors.accent, size: 24),
                   const SizedBox(width: 10),
-                  const Text(
+                  Text(
                     'Pemberitahuan & Update',
                     style: TextStyle(
                       color: AppColors.textPrimary,
@@ -58,13 +58,13 @@ class _ProfileTabState extends State<ProfileTab> {
                   ),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                    icon: Icon(Icons.close, color: AppColors.textSecondary),
                     onPressed: () => Navigator.pop(ctx),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              const Divider(color: AppColors.border),
+              Divider(color: AppColors.border),
               const SizedBox(height: 8),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -80,7 +80,7 @@ class _ProfileTabState extends State<ProfileTab> {
                         color: AppColors.accent, size: 22),
                   ),
                 ),
-                title: const Text(
+                title: Text(
                   'Episode Baru Tersedia!',
                   style: TextStyle(
                     color: AppColors.textPrimary,
@@ -88,7 +88,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                subtitle: const Text(
+                subtitle: Text(
                   'Solo Leveling S2 Ep 13 & One Piece Ep 1122 sudah dapat diputar dalam HD.',
                   style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                 ),
@@ -108,7 +108,7 @@ class _ProfileTabState extends State<ProfileTab> {
                         color: AppColors.dateCyan, size: 22),
                   ),
                 ),
-                title: const Text(
+                title: Text(
                   'Server Pemutar HD-1 CDN Aktif',
                   style: TextStyle(
                     color: AppColors.textPrimary,
@@ -116,7 +116,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                subtitle: const Text(
+                subtitle: Text(
                   'Streaming tanpa buffering dengan kualitas 1080p super cepat.',
                   style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                 ),
@@ -149,7 +149,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Username "MonaKawai"
-                      const Text(
+                      Text(
                         'MonaKawai',
                         style: TextStyle(
                           color: AppColors.textPrimary,
@@ -412,14 +412,91 @@ class _ProfileTabState extends State<ProfileTab> {
                 ),
               ],
             ),
-            const SizedBox(height: 36),
+            const SizedBox(height: 20),
+
+            // Mode Cerah / Gelap Switcher Tile
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: ValueListenableBuilder<ThemeMode>(
+                valueListenable: AppTheme.themeNotifier,
+                builder: (context, mode, _) {
+                  final isDark = mode == ThemeMode.dark;
+                  return Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: (isDark
+                                  ? const Color(0xFFFFCC00)
+                                  : AppColors.accent)
+                              .withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          isDark
+                              ? Icons.dark_mode_rounded
+                              : Icons.light_mode_rounded,
+                          color: isDark
+                              ? const Color(0xFFFFCC00)
+                              : AppColors.accent,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isDark
+                                  ? 'Mode Gelap (Aktif)'
+                                  : 'Mode Cerah (Aktif)',
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              isDark
+                                  ? 'Tampilan gelap elegan & hemat baterai'
+                                  : 'Tampilan cerah bersih & segar',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: !isDark,
+                        activeThumbColor: AppColors.accent,
+                        onChanged: (val) {
+                          StorageService.setThemeMode(
+                              val ? ThemeMode.light : ThemeMode.dark);
+                          setState(() {});
+                        },
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 24),
 
             // 4. Quick Preview Section: Anime Terakhir Ditonton
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(
                 children: [
-                  const Text(
+                  Text(
                     'Riwayat Terbaru',
                     style: TextStyle(
                       color: AppColors.textPrimary,
@@ -507,7 +584,7 @@ class _ProfileTabState extends State<ProfileTab> {
           const SizedBox(height: 8),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textPrimary,
               fontSize: 12,
               fontWeight: FontWeight.w800,
@@ -529,7 +606,7 @@ class _ProfileTabState extends State<ProfileTab> {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0xFF1E212E)),
         ),
-        child: const Center(
+        child: Center(
           child: Text(
             'Belum ada riwayat tontonan. Tonton anime untuk melihat riwayat di sini!',
             textAlign: TextAlign.center,
@@ -570,7 +647,7 @@ class _ProfileTabState extends State<ProfileTab> {
                       item.animeTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -588,7 +665,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded,
+              Icon(Icons.chevron_right_rounded,
                   color: AppColors.textMuted, size: 20),
             ],
           ),

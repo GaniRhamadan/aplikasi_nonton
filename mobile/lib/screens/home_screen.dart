@@ -15,19 +15,23 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  final Set<int> _loadedTabs = {0};
 
   void _onTabTapped(int index) {
-    setState(() => _currentIndex = index);
+    setState(() {
+      _currentIndex = index;
+      _loadedTabs.add(index);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final List<Widget> tabs = [
       HomeTab(onNavigateTab: _onTabTapped),
-      const ScheduleTab(),
-      const ExploreTab(),
-      const ChatTab(),
-      const ProfileTab(),
+      _loadedTabs.contains(1) ? const ScheduleTab() : const SizedBox.shrink(),
+      _loadedTabs.contains(2) ? const ExploreTab() : const SizedBox.shrink(),
+      _loadedTabs.contains(3) ? const ChatTab() : const SizedBox.shrink(),
+      _loadedTabs.contains(4) ? const ProfileTab() : const SizedBox.shrink(),
     ];
 
     return Scaffold(
@@ -36,10 +40,10 @@ class _HomeScreenState extends State<HomeScreen> {
         children: tabs,
       ),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.navBackground,
           border: Border(
-            top: BorderSide(color: Color(0xFF1E2028), width: 1),
+            top: BorderSide(color: AppColors.border, width: 1),
           ),
         ),
         child: SafeArea(

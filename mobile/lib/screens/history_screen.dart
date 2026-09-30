@@ -185,13 +185,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
         backgroundColor: AppColors.canvas,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'Riwayat Episode',
               style: TextStyle(
                 color: AppColors.textPrimary,
@@ -213,7 +213,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         centerTitle: true,
         actions: [
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded,
+            icon: Icon(Icons.more_vert_rounded,
                 color: AppColors.textSecondary),
             color: AppColors.surface,
             onSelected: (val) {
@@ -251,11 +251,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         shape: BoxShape.circle,
                         border: Border.all(color: AppColors.border),
                       ),
-                      child: const Icon(Icons.history_rounded,
+                      child: Icon(Icons.history_rounded,
                           size: 34, color: AppColors.textMuted),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       'Belum Ada Riwayat Tontonan',
                       style: TextStyle(
                         color: AppColors.textPrimary,
@@ -264,7 +264,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Text(
+                    Text(
                       'Episode yang Anda tonton akan otomatis tercatat di sini.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
@@ -314,13 +314,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) => Container(
                                     color: AppColors.surfaceMuted,
-                                    child: const Icon(Icons.movie,
+                                    child: Icon(Icons.movie,
                                         color: AppColors.textMuted),
                                   ),
                                 )
                               : Container(
                                   color: AppColors.surfaceMuted,
-                                  child: const Icon(Icons.movie,
+                                  child: Icon(Icons.movie,
                                       color: AppColors.textMuted),
                                 ),
                         ),
@@ -336,7 +336,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               item.animeTitle,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
@@ -345,7 +345,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             const SizedBox(height: 4),
                             Text(
                               'Episode ${item.episodeNumber}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.textPrimary,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w800,
@@ -391,7 +391,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
                       // Delete X button (matching screenshot 3)
                       IconButton(
-                        icon: const Icon(Icons.close_rounded,
+                        icon: Icon(Icons.close_rounded,
                             color: AppColors.textSecondary, size: 20),
                         tooltip: 'Hapus',
                         onPressed: () => _deleteItem(item),

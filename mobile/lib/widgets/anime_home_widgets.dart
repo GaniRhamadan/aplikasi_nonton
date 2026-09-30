@@ -24,7 +24,7 @@ class SectionHeader extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.w800,
@@ -37,13 +37,13 @@ class SectionHeader extends StatelessWidget {
             child: Container(
               width: 32,
               height: 32,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1C1E26),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.chevron_right_rounded,
-                color: Colors.white70,
+                color: AppColors.textSecondary,
                 size: 20,
               ),
             ),
@@ -222,7 +222,7 @@ class AnimeVerticalCard extends StatelessWidget {
               anime.title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 13.5,
                 fontWeight: FontWeight.w700,
@@ -352,7 +352,7 @@ class AnimeVerticalCard extends StatelessWidget {
   Widget _buildPlaceholder() {
     return Container(
       color: AppColors.surfaceMuted,
-      child: const Center(
+      child: Center(
         child: Icon(
           Icons.movie_filter_rounded,
           color: AppColors.textMuted,
@@ -448,7 +448,7 @@ class AnimeBannerCard extends StatelessWidget {
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
                       color: AppColors.surfaceMuted,
-                      child: const Icon(Icons.movie, color: AppColors.textMuted),
+                      child: Icon(Icons.movie, color: AppColors.textMuted),
                     ),
                   ),
                 ),
@@ -475,7 +475,7 @@ class AnimeBannerCard extends StatelessWidget {
                       anime.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -550,7 +550,7 @@ class AnimeBannerCard extends StatelessWidget {
                 anime.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -594,7 +594,7 @@ class CuplixAvatar extends StatelessWidget {
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) => Container(
               color: AppColors.surfaceMuted,
-              child: const Icon(Icons.person, color: AppColors.textMuted),
+              child: Icon(Icons.person, color: AppColors.textMuted),
             ),
           ),
         ),
@@ -732,7 +732,7 @@ class StudioChip extends StatelessWidget {
             child: Center(
               child: Text(
                 studioName,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -777,7 +777,7 @@ class YearChip extends StatelessWidget {
             child: Center(
               child: Text(
                 year,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w700,

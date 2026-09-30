@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/anime_models.dart';
@@ -33,6 +35,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _subIndoEnabled = true;
   WebViewController? _webViewController;
   bool _isFullscreen = false;
+  String _currentSubtitleText = '';
 
   // Multi-server state
   List<StreamServerItem> _availableServers = [];
@@ -89,6 +92,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _availableServers = [];
       _selectedServer = null;
       _directM3u8Url = null;
+      _currentSubtitleText = '';
     });
 
     final totalEps = widget.anime.totalEpisodes > 0
@@ -175,6 +179,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _selectedServer = server;
       _streamUrl = server.embedUrl;
       _isLoadingStream = true;
+      _currentSubtitleText = '';
     });
     _initWebView(server.embedUrl);
     setState(() {
@@ -182,13 +187,124 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
   }
 
+  final Map<String, String> _translationCache = {};
+
+  Future<void> _handleSubChannelMessage(String raw) async {
+    try {
+      final data = json.decode(raw);
+      if (data is! Map) return;
+
+      final action = data['action']?.toString() ?? '';
+
+      if (action == 'enable') {
+        if (!_subIndoEnabled) {
+          setState(() {
+            _subIndoEnabled = true;
+          });
+          StorageService.setSubLanguage('id');
+        }
+      } else if (action == 'disable') {
+        if (_subIndoEnabled) {
+          setState(() {
+            _subIndoEnabled = false;
+            _currentSubtitleText = '';
+          });
+          StorageService.setSubLanguage('en');
+        }
+      } else if (action == 'cue' || action == 'translate') {
+        final text = data['text']?.toString() ?? '';
+        final clean = text.trim();
+        if (clean.isEmpty) {
+          if (mounted && _currentSubtitleText.isNotEmpty) {
+            setState(() {
+              _currentSubtitleText = '';
+            });
+          }
+          return;
+        }
+
+        if (!_subIndoEnabled) return;
+
+        // If translation is already cached, show it instantly
+        if (_translationCache.containsKey(clean)) {
+          if (mounted) {
+            setState(() {
+              _currentSubtitleText = _translationCache[clean]!;
+            });
+          }
+          return;
+        }
+
+        // Show original text immediately while translating so there is zero delay
+        if (mounted) {
+          setState(() {
+            _currentSubtitleText = clean;
+          });
+        }
+
+        final translated = await _translateText(clean);
+        if (mounted && _subIndoEnabled) {
+          setState(() {
+            _currentSubtitleText = translated;
+          });
+        }
+
+        final safeOrig = jsonEncode(clean);
+        final safeTrans = jsonEncode(translated);
+        _webViewController?.runJavaScript(
+          'window.__onIndoTranslationReady && window.__onIndoTranslationReady($safeOrig, $safeTrans);',
+        );
+      } else if (action == 'clear') {
+        if (mounted && _currentSubtitleText.isNotEmpty) {
+          setState(() {
+            _currentSubtitleText = '';
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<String> _translateText(String text) async {
+    final clean = text.trim();
+    if (clean.isEmpty) return clean;
+    if (_translationCache.containsKey(clean)) {
+      return _translationCache[clean]!;
+    }
+
+    try {
+      final uri = Uri.parse(
+        'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=id&dt=t&q=${Uri.encodeQueryComponent(clean)}',
+      );
+      final res = await http.get(uri).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final decoded = json.decode(res.body);
+        if (decoded is List && decoded.isNotEmpty && decoded[0] is List) {
+          final sb = StringBuffer();
+          for (final part in decoded[0]) {
+            if (part is List && part.isNotEmpty) {
+              sb.write(part[0]);
+            }
+          }
+          final translated = sb.toString();
+          if (translated.isNotEmpty) {
+            _translationCache[clean] = translated;
+            return translated;
+          }
+        }
+      }
+    } catch (_) {}
+
+    return clean;
+  }
+
   void _injectSubtitleTranslationScript() {
     final script = '''
       (function() {
         try {
           window.__subIndoEnabled = $_subIndoEnabled;
+          window.__subCache = window.__subCache || {};
 
-          // 1. Ensure CSS exists to hide default English cue text when Indo is active
+          // 1. Hide default English cues only when Subtitle Indonesia is active
           var hideStyle = document.getElementById('sub-hide-cues-style');
           if (!hideStyle) {
             hideStyle = document.createElement('style');
@@ -196,22 +312,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
             document.head.appendChild(hideStyle);
           }
           if (window.__subIndoEnabled) {
-            hideStyle.innerHTML = 'video::cue { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; } .jw-text-track-cue { opacity: 0 !important; display: none !important; }';
+            hideStyle.innerHTML = 'video::cue { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; line-height: 0 !important; height: 0 !important; } .jw-text-track-cue { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; line-height: 0 !important; height: 0 !important; } .jw-captions-text { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; } div[class*="text-track-cue"] { opacity: 0 !important; visibility: hidden !important; } .jw-text-track-display { pointer-events: none !important; }';
           } else {
             hideStyle.innerHTML = '';
           }
 
-          // 2. Setup Subtitle Overlay inside Player container
+          // 2. Setup Subtitle Overlay inside Player container as web backup
           var playerContainer = document.getElementById('megaplay-player') ||
                                 document.querySelector('.mg3-player') ||
                                 document.querySelector('.fix-area') ||
+                                document.querySelector('#player') ||
                                 document.body;
 
           var overlay = document.getElementById('sub-id-overlay');
           if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'sub-id-overlay';
-            overlay.style.cssText = 'position:fixed;bottom:14%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#FFFFFF;padding:8px 18px;border-radius:8px;font-size:16px;font-weight:700;text-align:center;max-width:92%;z-index:2147483647;pointer-events:none;display:none;line-height:1.4;font-family:system-ui,-apple-system,sans-serif;text-shadow:0 2px 4px rgba(0,0,0,0.9);border:1.5px solid rgba(250,90,50,0.7);box-shadow:0 4px 14px rgba(0,0,0,0.6);';
+            overlay.style.cssText = 'position:fixed;bottom:14%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#FFFFFF;padding:6px 16px;border-radius:8px;font-size:16px;font-weight:700;text-align:center;max-width:92%;z-index:2147483647;pointer-events:none;display:none;line-height:1.35;font-family:system-ui,-apple-system,sans-serif;text-shadow:0 2px 4px rgba(0,0,0,0.95);border:1.5px solid rgba(250,90,50,0.85);box-shadow:0 4px 16px rgba(0,0,0,0.7);';
             playerContainer.appendChild(overlay);
           } else if (overlay.parentElement !== playerContainer) {
             playerContainer.appendChild(overlay);
@@ -221,75 +338,288 @@ class _PlayerScreenState extends State<PlayerScreen> {
             overlay.style.display = 'none';
           }
 
-          // 3. Translation Cache & Fetcher
-          var cache = window.__subCache || {};
-          window.__subCache = cache;
-
-          function translateText(text) {
-            if (!text || text.trim() === '' || !window.__subIndoEnabled) {
-              overlay.style.display = 'none';
+          function renderIndonesianSubtitle(text) {
+            if (!window.__subIndoEnabled || !text || text.trim() === '') {
+              if (overlay) overlay.style.display = 'none';
               return;
             }
-            text = text.replace(/<[^>]*>/g, '').trim();
-            if (cache[text]) {
-              overlay.innerText = cache[text];
+            if (overlay) {
+              overlay.innerText = text;
               overlay.style.display = 'block';
-              return;
             }
-            fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=id&dt=t&q=' + encodeURIComponent(text))
-              .then(function(r){ return r.json(); })
-              .then(function(d){
-                var trans = d[0].map(function(x){ return x[0]; }).join('');
-                cache[text] = trans;
-                if (window.__subIndoEnabled) {
-                  overlay.innerText = trans;
-                  overlay.style.display = 'block';
-                }
-              })
-              .catch(function(){
-                if (window.__subIndoEnabled) {
-                  overlay.innerText = text;
-                  overlay.style.display = 'block';
-                }
-              });
           }
 
-          // 4. Attach Cues & Ensure English is Active
-          function attachCueHandlers() {
-            var video = document.querySelector('video');
-            if (!video) return;
+          // Callback when Flutter finishes native HTTP translation
+          window.__onIndoTranslationReady = function(orig, trans) {
+            window.__subCache[orig] = trans;
+            if (window.__subIndoEnabled && (window.__currentCue === orig || !window.__currentCue)) {
+              renderIndonesianSubtitle(trans);
+            }
+          };
 
-            if (video.textTracks && video.textTracks.length > 0) {
-              for (var i = 0; i < video.textTracks.length; i++) {
-                var track = video.textTracks[i];
-                var lang = (track.language || track.label || '').toLowerCase();
-                
-                // If Indonesian is enabled, activate English track in hidden mode so cues stream
-                if (window.__subIndoEnabled && (lang.indexOf('en') !== -1 || i === 0)) {
-                  if (track.mode === 'disabled') {
-                    track.mode = 'hidden';
+          function handleEngCue(text) {
+            if (!text || text.trim() === '') {
+              renderIndonesianSubtitle('');
+              try {
+                if (window.FlutterSubChannel) {
+                  window.FlutterSubChannel.postMessage(JSON.stringify({action: 'clear'}));
+                }
+              } catch(e) {}
+              return;
+            }
+            text = text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/\\s+/g, ' ').trim();
+            if (text === '') {
+              renderIndonesianSubtitle('');
+              try {
+                if (window.FlutterSubChannel) {
+                  window.FlutterSubChannel.postMessage(JSON.stringify({action: 'clear'}));
+                }
+              } catch(e) {}
+              return;
+            }
+
+            window.__currentCue = text;
+
+            // Notify Flutter immediately so native overlay shows text / cache instantly
+            try {
+              if (window.FlutterSubChannel) {
+                window.FlutterSubChannel.postMessage(JSON.stringify({
+                  action: 'cue',
+                  text: text
+                }));
+              }
+            } catch(e) {}
+
+            if (window.__subCache[text]) {
+              renderIndonesianSubtitle(window.__subCache[text]);
+              return;
+            }
+
+            // Immediately display english text temporarily on DOM overlay while translating
+            renderIndonesianSubtitle(text);
+
+            // In-browser fallback translation
+            try {
+              fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=id&dt=t&q=' + encodeURIComponent(text))
+                .then(function(r){ return r.json(); })
+                .then(function(d){
+                  if (d && d[0]) {
+                    var trans = d[0].map(function(x){ return x[0]; }).join('');
+                    if (trans && window.__subIndoEnabled) {
+                      window.__onIndoTranslationReady(text, trans);
+                    }
+                  }
+                }).catch(function(){});
+            } catch(e) {}
+          }
+
+          // 3. Auto-activate captions in JWPlayer and HTML5 <video>
+          function activateCaptions() {
+            if (!window.__subIndoEnabled) return;
+
+            // A. JWPlayer auto-activation
+            try {
+              var jw = null;
+              if (typeof window.jwplayer === 'function') {
+                jw = window.jwplayer('megaplay-player') || window.jwplayer();
+              }
+              if (jw && typeof jw.getCaptionsList === 'function') {
+                var list = jw.getCaptionsList();
+                if (list && list.length > 1) {
+                  var current = jw.getCurrentCaptions();
+                  var enIdx = -1;
+                  var firstValidIdx = -1;
+                  for (var i = 0; i < list.length; i++) {
+                    var item = list[i] || {};
+                    var label = (item.label || '').toLowerCase();
+                    var id = (item.id || '').toLowerCase();
+                    if (label !== 'off' && id !== 'off') {
+                      if (firstValidIdx === -1) firstValidIdx = i;
+                      if (label.indexOf('english') !== -1 || label.indexOf('eng') !== -1 || id === 'en' || id === 'eng') {
+                        enIdx = i;
+                        break;
+                      }
+                    }
+                  }
+                  var targetIdx = enIdx !== -1 ? enIdx : firstValidIdx;
+                  if (targetIdx !== -1 && current !== targetIdx) {
+                    jw.setCurrentCaptions(targetIdx);
                   }
                 }
 
-                if (!track.__hooked) {
-                  track.__hooked = true;
-                  track.oncuechange = function() {
-                    if (!window.__subIndoEnabled) {
-                      overlay.style.display = 'none';
-                      return;
+                if (!window.__jwEventsAttached && typeof jw.on === 'function') {
+                  window.__jwEventsAttached = true;
+                  jw.on('captionsList', function() { activateCaptions(); });
+                  jw.on('ready', function() { activateCaptions(); });
+                  jw.on('time', function() { scanCues(); });
+                }
+              }
+            } catch(e) {}
+
+            // B. HTML5 <video> textTracks auto-activation
+            try {
+              var vids = document.querySelectorAll('video');
+              for (var v = 0; v < vids.length; v++) {
+                var vid = vids[v];
+                if (!vid.__eventsHooked) {
+                  vid.__eventsHooked = true;
+                  vid.addEventListener('timeupdate', function() { scanCues(); });
+                  vid.addEventListener('play', function() { activateCaptions(); scanCues(); });
+                }
+                if (vid.textTracks && vid.textTracks.length > 0) {
+                  for (var t = 0; t < vid.textTracks.length; t++) {
+                    var tr = vid.textTracks[t];
+                    var trLang = ((tr.label || '') + ' ' + (tr.language || '')).toLowerCase();
+                    if (tr.kind === 'captions' || tr.kind === 'subtitles' || trLang.indexOf('en') !== -1) {
+                      if (tr.mode === 'disabled') {
+                        tr.mode = 'hidden';
+                      }
+                      if (!tr.__cueHooked) {
+                        tr.__cueHooked = true;
+                        tr.oncuechange = function() { scanCues(); };
+                      }
                     }
-                    if (this.activeCues && this.activeCues.length > 0) {
-                      translateText(this.activeCues[0].text);
-                    } else {
-                      overlay.style.display = 'none';
+                  }
+                }
+              }
+            } catch(e) {}
+          }
+
+          // 4. Fallback VTT fetch & timestamp parser
+          function parseVtt(content) {
+            var cues = [];
+            var lines = content.split(/\\r?\\n/);
+            var timeRegex = /(\\d{2}:)?(\\d{2}):(\\d{2})[.,](\\d{3})\\s*-->\\s*(\\d{2}:)?(\\d{2}):(\\d{2})[.,](\\d{3})/;
+            var curr = null;
+            function toSec(h, m, s, ms) {
+              return (parseInt(h || '0', 10) * 3600) + (parseInt(m, 10) * 60) + parseInt(s, 10) + (parseInt(ms, 10) / 1000);
+            }
+            for (var i = 0; i < lines.length; i++) {
+              var l = lines[i].trim();
+              var m = l.match(timeRegex);
+              if (m) {
+                var start = toSec(m[1], m[2], m[3], m[4]);
+                var end = toSec(m[5], m[6], m[7], m[8]);
+                curr = { start: start, end: end, text: '' };
+                cues.push(curr);
+              } else if (curr && l && l !== 'WEBVTT' && !l.startsWith('NOTE') && isNaN(l)) {
+                curr.text = (curr.text ? curr.text + ' ' : '') + l;
+              }
+            }
+            return cues;
+          }
+
+          function tryLoadVttDirectly() {
+            if (window.__vttLoaded || window.__vttLoading) return;
+            var playerEl = document.getElementById('megaplay-player');
+            var realId = playerEl ? playerEl.getAttribute('data-realid') : null;
+            if (!realId) return;
+
+            window.__vttLoading = true;
+            fetch('/stream/getSources?id=' + realId, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+              .then(function(r) { return r.json(); })
+              .then(function(data) {
+                if (data && data.tracks && data.tracks.length > 0) {
+                  var vttUrl = null;
+                  for (var i = 0; i < data.tracks.length; i++) {
+                    var tr = data.tracks[i];
+                    var lbl = (tr.label || '').toLowerCase();
+                    if (lbl.indexOf('en') !== -1 || tr.default) {
+                      vttUrl = tr.file;
+                      break;
                     }
-                  };
+                  }
+                  if (!vttUrl && data.tracks[0].file) vttUrl = data.tracks[0].file;
+                  if (vttUrl) {
+                    fetch(vttUrl)
+                      .then(function(vr) { return vr.text(); })
+                      .then(function(vttText) {
+                        window.__parsedVttCues = parseVtt(vttText);
+                        window.__vttLoaded = true;
+                        window.__vttLoading = false;
+                      })
+                      .catch(function() { window.__vttLoading = false; });
+                  }
+                }
+              })
+              .catch(function() { window.__vttLoading = false; });
+          }
+
+          // 5. Scan & Observe Cues from all sources (DOM, textTracks, VTT fallback)
+          function scanCues() {
+            if (!window.__subIndoEnabled) return;
+
+            // Source 1: DOM cues (JWPlayer, MegaCloud, VideoJS)
+            var cueEls = document.querySelectorAll('.jw-text-track-cue, .jw-captions-text, .jw-cue, .vjs-text-track-cue, div[class*="text-track-cue"], div[class*="caption-window"], div[class*="subtitle-cue"], .art-subtitle-item');
+            var domCue = '';
+            if (cueEls.length > 0) {
+              for (var c = 0; c < cueEls.length; c++) {
+                var t = (cueEls[c].innerText || cueEls[c].textContent || '').trim();
+                if (t) domCue += t + ' ';
+              }
+              domCue = domCue.trim();
+            }
+
+            // Source 2: HTML5 textTracks active cues
+            var videoCue = '';
+            var video = document.querySelector('video');
+            if (video && video.textTracks) {
+              for (var i = 0; i < video.textTracks.length; i++) {
+                var tr = video.textTracks[i];
+                if (tr.activeCues && tr.activeCues.length > 0) {
+                  for (var j = 0; j < tr.activeCues.length; j++) {
+                    var ct = tr.activeCues[j].text || '';
+                    if (ct) videoCue += ct + ' ';
+                  }
+                }
+              }
+              videoCue = videoCue.trim();
+            }
+
+            // Source 3: Direct VTT timestamp cues
+            var vttCue = '';
+            if (video && window.__parsedVttCues && window.__parsedVttCues.length > 0) {
+              var curTime = video.currentTime;
+              for (var k = 0; k < window.__parsedVttCues.length; k++) {
+                var vc = window.__parsedVttCues[k];
+                if (curTime >= vc.start && curTime <= vc.end) {
+                  vttCue = vc.text;
+                  break;
                 }
               }
             }
+
+            var chosen = domCue || videoCue || vttCue;
+            if (chosen && chosen.length > 0) {
+              if (chosen !== window.__lastObservedCue) {
+                window.__lastObservedCue = chosen;
+                handleEngCue(chosen);
+              }
+              return;
+            }
+
+            // If no cues found anywhere (silence / dialogue gap)
+            if (window.__lastObservedCue !== '') {
+              window.__lastObservedCue = '';
+              window.__currentCue = '';
+              renderIndonesianSubtitle('');
+              try {
+                if (window.FlutterSubChannel) {
+                  window.FlutterSubChannel.postMessage(JSON.stringify({action: 'clear'}));
+                }
+              } catch(e) {}
+            }
           }
 
-          // 5. Injects "Indonesian (Bahasa Indonesia)" directly into the player's CC popup menu
+          if (!window.__cueObserverAttached) {
+            window.__cueObserverAttached = true;
+            var observer = new MutationObserver(function() {
+              scanCues();
+            });
+            observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+          }
+
+          // 6. Inject "Indonesian" into player CC popup menu
           function injectIndonesianOptionIntoPlayerCC() {
             try {
               var allElems = document.querySelectorAll('*');
@@ -309,9 +639,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
               if (!sampleItem || !sampleItem.parentElement) return;
               var container = sampleItem.parentElement;
 
-              if (container.querySelector('.sub-id-custom-cc')) {
-                // Already injected, update active status
-                var existing = container.querySelector('.sub-id-custom-cc');
+              var existing = container.querySelector('.sub-id-custom-cc');
+              if (existing) {
                 if (window.__subIndoEnabled) {
                   existing.style.color = '#FA5A32';
                   existing.style.fontWeight = 'bold';
@@ -322,12 +651,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 return;
               }
 
-              // Clone sampleItem to inherit player's exact font, padding, and layout
               var indoOption = sampleItem.cloneNode(true);
               indoOption.classList.add('sub-id-custom-cc');
               indoOption.id = 'sub-id-option';
 
-              // Change text content to Indonesian
               var textNodeFound = false;
               function walkAndReplace(node) {
                 if (node.nodeType === 3 && node.nodeValue.trim().length > 0 && !textNodeFound) {
@@ -350,77 +677,64 @@ class _PlayerScreenState extends State<PlayerScreen> {
               }
 
               indoOption.onclick = function(ev) {
-                ev.stopPropagation();
                 window.__subIndoEnabled = true;
+                try {
+                  if (window.FlutterSubChannel) {
+                    window.FlutterSubChannel.postMessage(JSON.stringify({action: 'enable'}));
+                  }
+                } catch(e) {}
 
-                // Mark selected in UI
+                activateCaptions();
+
                 indoOption.style.color = '#FA5A32';
                 indoOption.style.fontWeight = 'bold';
-                var sibs = container.children;
-                for (var s = 0; s < sibs.length; s++) {
-                  if (sibs[s] !== indoOption) {
-                    sibs[s].style.color = '';
-                    sibs[s].style.fontWeight = 'normal';
-                  }
-                }
-
-                // Enable English track mode in background
-                attachCueHandlers();
-
-                // Apply cue hiding
                 if (hideStyle) {
-                  hideStyle.innerHTML = 'video::cue { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; } .jw-text-track-cue { opacity: 0 !important; display: none !important; }';
+                  hideStyle.innerHTML = 'video::cue { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; line-height: 0 !important; height: 0 !important; } .jw-text-track-cue { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; line-height: 0 !important; height: 0 !important; } .jw-captions-text { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; } div[class*="text-track-cue"] { opacity: 0 !important; visibility: hidden !important; } .jw-text-track-display { pointer-events: none !important; }';
                 }
-
-                // Toast notification inside player
-                var toast = document.getElementById('sub-toast');
-                if (!toast) {
-                  toast = document.createElement('div');
-                  toast.id = 'sub-toast';
-                  toast.style.cssText = 'position:fixed;top:16%;left:50%;transform:translateX(-50%);background:rgba(250,90,50,0.92);color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;font-weight:700;z-index:2147483647;pointer-events:none;transition:opacity 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.5);';
-                  document.body.appendChild(toast);
-                }
-                toast.innerText = '✓ Subtitle Indonesia Aktif';
-                toast.style.display = 'block';
-                toast.style.opacity = '1';
-                setTimeout(function() {
-                  toast.style.opacity = '0';
-                  setTimeout(function() { toast.style.display = 'none'; }, 300);
-                }, 2200);
               };
 
-              // Hook siblings so clicking another language disables the Indonesian overlay
               var siblings = container.children;
               for (var k = 0; k < siblings.length; k++) {
                 (function(sib) {
                   if (!sib.__hookedClick) {
                     sib.__hookedClick = true;
-                    var origClick = sib.onclick;
                     sib.addEventListener('click', function() {
+                      if (sib === indoOption) return;
                       window.__subIndoEnabled = false;
-                      overlay.style.display = 'none';
+                      if (overlay) overlay.style.display = 'none';
                       if (hideStyle) hideStyle.innerHTML = '';
                       indoOption.style.color = '';
                       indoOption.style.fontWeight = 'normal';
+                      try {
+                        if (window.FlutterSubChannel) {
+                          window.FlutterSubChannel.postMessage(JSON.stringify({action: 'disable'}));
+                        }
+                      } catch(e) {}
                     });
                   }
                 })(siblings[k]);
               }
 
-              // Insert Indonesian right at the top of the list!
               container.insertBefore(indoOption, container.firstChild);
             } catch(e) {}
           }
 
-          attachCueHandlers();
+          // Initial runs
+          activateCaptions();
+          tryLoadVttDirectly();
+          scanCues();
           injectIndonesianOptionIntoPlayerCC();
 
-          if (!window.__subInterval) {
-            window.__subInterval = setInterval(function() {
-              attachCueHandlers();
+          // Continuous polling loop
+          if (window.__subPoller) clearInterval(window.__subPoller);
+          window.__subPoller = setInterval(function() {
+            if (window.__subIndoEnabled) {
+              activateCaptions();
+              tryLoadVttDirectly();
+              scanCues();
               injectIndonesianOptionIntoPlayerCC();
-            }, 800);
-          }
+            }
+          }, 250);
         } catch(e) {}
       })();
     ''';
@@ -434,6 +748,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
       ..enableZoom(false)
       ..setUserAgent(
         'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+      )
+      ..addJavaScriptChannel(
+        'FlutterSubChannel',
+        onMessageReceived: (JavaScriptMessage msg) {
+          _handleSubChannelMessage(msg.message);
+        },
       )
       ..setNavigationDelegate(
         NavigationDelegate(
@@ -452,6 +772,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
               } catch(e) {}
             ''');
             _injectSubtitleTranslationScript();
+            Future.delayed(const Duration(milliseconds: 1500), () {
+              if (mounted) _injectSubtitleTranslationScript();
+            });
+            Future.delayed(const Duration(milliseconds: 3000), () {
+              if (mounted) _injectSubtitleTranslationScript();
+            });
           },
         ),
       )
@@ -466,6 +792,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _toggleSubtitleIndonesia() {
     setState(() {
       _subIndoEnabled = !_subIndoEnabled;
+      if (!_subIndoEnabled) {
+        _currentSubtitleText = '';
+      }
     });
     StorageService.setSubLanguage(_subIndoEnabled ? 'id' : 'en');
     _injectSubtitleTranslationScript();
@@ -552,7 +881,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
             Text('Subtitle Indonesia di MPV'),
           ],
         ),
-        content: const Column(
+        content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -632,7 +961,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     border: Border(bottom: BorderSide(color: AppColors.border)),
                   ),
                   child: Row(
@@ -640,14 +969,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     children: [
                       Text(
                         'Pilih Episode (${_allEpisodes.length})',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close,
+                        icon: Icon(Icons.close,
                             color: AppColors.textSecondary),
                         onPressed: () => Navigator.pop(ctx),
                       ),
@@ -791,7 +1120,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
               'Episode ${_currentEpisode.number}: ${_currentEpisode.title}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.w400,
@@ -821,7 +1150,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   // Title
                   Text(
                     'Episode ${_currentEpisode.number}: ${_currentEpisode.title}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
@@ -833,7 +1162,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Row(
+                        Row(
                           children: [
                             Icon(Icons.bolt_rounded,
                                 size: 16, color: AppColors.accent),
@@ -939,7 +1268,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Row(
+                            Row(
                               children: [
                                 Icon(Icons.subtitles_rounded,
                                     size: 18, color: AppColors.accent),
@@ -985,7 +1314,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           _subIndoEnabled
                               ? 'Teks dialog otomatis diterjemahkan ke Bahasa Indonesia di layar video.'
                               : 'Menampilkan teks bahasa Inggris bawaan server (English CC).',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11.5,
                             color: AppColors.textSecondary,
                             height: 1.35,
@@ -1031,7 +1360,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Pilihan Audio Suara:',
                         style: TextStyle(
                           color: AppColors.textSecondary,
@@ -1101,7 +1430,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   // Action Buttons: Select Episode
                   OutlinedButton.icon(
                     onPressed: _showEpisodePickerSheet,
-                    icon: const Icon(Icons.list_rounded,
+                    icon: Icon(Icons.list_rounded,
                         color: AppColors.textPrimary),
                     label: Text(
                       _isLoadingEpisodes
@@ -1121,7 +1450,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: _openInExternalPlayer,
-                          icon: const Icon(Icons.open_in_new,
+                          icon: Icon(Icons.open_in_new,
                               color: AppColors.textSecondary),
                           label: const Text('Buka di MPV / VLC'),
                           style: OutlinedButton.styleFrom(
@@ -1133,7 +1462,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       const SizedBox(width: 8),
                       IconButton(
                         onPressed: _showMpvGuideDialog,
-                        icon: const Icon(Icons.help_outline,
+                        icon: Icon(Icons.help_outline,
                             color: AppColors.textSecondary),
                         tooltip: 'Panduan Sub Indo di MPV',
                       ),
@@ -1153,7 +1482,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Sinopsis',
                             style: TextStyle(
                               color: AppColors.textPrimary,
@@ -1164,7 +1493,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           const SizedBox(height: 6),
                           Text(
                             widget.anime.synopsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textSecondary,
                               fontSize: 13,
                               height: 1.45,
@@ -1259,7 +1588,58 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
 
     if (_webViewController != null) {
-      return WebViewWidget(controller: _webViewController!);
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          WebViewWidget(controller: _webViewController!),
+          if (_subIndoEnabled && _currentSubtitleText.isNotEmpty)
+            Positioned(
+              bottom: _isFullscreen ? 44 : 26,
+              left: 14,
+              right: 14,
+              child: IgnorePointer(
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppColors.accent.withValues(alpha: 0.9),
+                        width: 1.4,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.7),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      _currentSubtitleText,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                        height: 1.3,
+                        shadows: [
+                          Shadow(
+                            blurRadius: 4,
+                            color: Colors.black,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
     }
 
     return Container(color: Colors.black);

@@ -68,13 +68,13 @@ class ContinueWatchingCard extends StatelessWidget {
                             errorBuilder: (context, error, stackTrace) =>
                                 Container(
                               color: AppColors.surfaceMuted,
-                              child: const Icon(Icons.movie,
+                              child: Icon(Icons.movie,
                                   color: AppColors.textMuted),
                             ),
                           )
                         : Container(
                             color: AppColors.surfaceMuted,
-                            child: const Icon(Icons.movie,
+                            child: Icon(Icons.movie,
                                 color: AppColors.textMuted),
                           ),
                   ),
@@ -113,7 +113,7 @@ class ContinueWatchingCard extends StatelessWidget {
                         item.animeTitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -124,7 +124,7 @@ class ContinueWatchingCard extends StatelessWidget {
                         'Episode ${item.episodeNumber}: ${item.episodeTitle}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,
                         ),

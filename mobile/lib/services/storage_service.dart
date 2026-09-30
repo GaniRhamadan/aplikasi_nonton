@@ -1,5 +1,7 @@
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/anime_models.dart';
+import '../theme/app_theme.dart';
 
 class StorageService {
   static const String _keyHistory = 'ani_history';
@@ -8,6 +10,7 @@ class StorageService {
   static const String _keyPrefPlayer = 'ani_pref_player';
   static const String _keyPrefQuality = 'ani_pref_quality';
   static const String _keySubLanguage = 'ani_pref_sub_lang';
+  static const String _keyThemeMode = 'ani_theme_mode';
 
   static SharedPreferences? _prefs;
 
@@ -186,5 +189,24 @@ class StorageService {
   static String get subLanguage => _prefs?.getString(_keySubLanguage) ?? 'id';
   static Future<void> setSubLanguage(String value) async {
     await _prefs?.setString(_keySubLanguage, value);
+  }
+
+  // --- Theme Mode ---
+  static String get themeModeString =>
+      _prefs?.getString(_keyThemeMode) ?? 'dark';
+
+  static ThemeMode get themeMode {
+    final str = themeModeString;
+    if (str == 'light') return ThemeMode.light;
+    if (str == 'system') return ThemeMode.system;
+    return ThemeMode.dark;
+  }
+
+  static Future<void> setThemeMode(ThemeMode mode) async {
+    String str = 'dark';
+    if (mode == ThemeMode.light) str = 'light';
+    if (mode == ThemeMode.system) str = 'system';
+    await _prefs?.setString(_keyThemeMode, str);
+    AppTheme.updateThemeMode(mode);
   }
 }

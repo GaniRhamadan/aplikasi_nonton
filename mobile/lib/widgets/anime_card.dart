@@ -51,6 +51,12 @@ class AnimeCard extends StatelessWidget {
                       ? Image.network(
                           anime.posterUrl,
                           fit: BoxFit.cover,
+                          headers: const {
+                            'User-Agent':
+                                'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                            'Referer': 'https://hianime.at/',
+                          },
+                          cacheWidth: 360,
                           errorBuilder: (context, error, stackTrace) =>
                               _buildPlaceholder(),
                           loadingBuilder: (context, child, loadingProgress) {
@@ -210,7 +216,7 @@ class AnimeCard extends StatelessWidget {
                     anime.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
@@ -241,7 +247,7 @@ class AnimeCard extends StatelessWidget {
                   else
                     Text(
                       anime.type,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
@@ -259,7 +265,7 @@ class AnimeCard extends StatelessWidget {
   Widget _buildPlaceholder() {
     return Container(
       color: AppColors.surfaceMuted,
-      child: const Center(
+      child: Center(
         child: Icon(Icons.movie_outlined, color: AppColors.textMuted, size: 36),
       ),
     );

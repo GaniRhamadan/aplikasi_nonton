@@ -228,95 +228,6 @@ class AnimeService {
   /// In-memory cache for anime genres to make repeated lookups instant
   static final Map<String, Set<String>> _animeGenreCache = {};
 
-  /// Genre specificity hierarchy for picking the most targeted candidate source
-  static const Map<String, int> _genreSpecificity = {
-    'isekai': 1,
-    'vampire': 2,
-    'mecha': 3,
-    'sports': 4,
-    'team-sports': 4,
-    'combat-sports': 4,
-    'harem': 5,
-    'reverse-harem': 5,
-    'ecchi': 6,
-    'erotica': 6,
-    'hentai': 6,
-    'music': 7,
-    'performing-arts': 7,
-    'idols-female': 7,
-    'idols-male': 7,
-    'military': 8,
-    'game': 9,
-    'video-game': 9,
-    'strategy-game': 9,
-    'high-stakes-game': 9,
-    'martial-arts': 10,
-    'super-power': 11,
-    'historical': 12,
-    'samurai': 12,
-    'parody': 13,
-    'gag-humor': 13,
-    'space': 14,
-    'police': 15,
-    'detective': 15,
-    'organized-crime': 15,
-    'psychological': 16,
-    'horror': 17,
-    'gore': 17,
-    'survival': 18,
-    'mystery': 19,
-    'thriller': 20,
-    'suspense': 20,
-    'time-travel': 21,
-    'reincarnation': 22,
-    'demons': 23,
-    'mythology': 24,
-    'magic': 25,
-    'mahou-shoujo': 25,
-    'magical-sex-shift': 25,
-    'childcare': 26,
-    'crossdressing': 27,
-    'delinquents': 28,
-    'workplace': 29,
-    'otaku-culture': 30,
-    'pets': 31,
-    'racing': 32,
-    'cars': 32,
-    'villainess': 33,
-    'urban-fantasy': 34,
-    'visual-arts': 35,
-    'cgdct': 36,
-    'iyashikei': 37,
-    'love-polygon': 38,
-    'love-status-quo': 38,
-    'adult-cast': 39,
-    'anthropomorphic': 40,
-    'avant-garde': 41,
-    'award-winning': 42,
-    'boys-love': 43,
-    'girls-love': 44,
-    'shoujo-ai': 44,
-    'shounen-ai': 43,
-    'dementia': 45,
-    'educational': 46,
-    'school': 50,
-    'slice-of-life': 51,
-    'shoujo': 55,
-    'shounen': 60,
-    'seinen': 61,
-    'josei': 62,
-    'kids': 63,
-    'supernatural': 65,
-    'drama': 70,
-    'romance': 75,
-    'fantasy': 80,
-    'sci-fi': 82,
-    'sci-fi-fantasy': 82,
-    'adventure': 85,
-    'action-adventure': 87,
-    'action': 90,
-    'comedy': 95,
-  };
 
   /// Check whether an anime's genre set satisfies a required genre slug
   static bool _matchesGenre(Set<String> animeGenres, String requiredSlug) {
@@ -402,7 +313,13 @@ class AnimeService {
     return const [];
   }
 
-  /// Get anime matching ALL selected genres (Strict AND-logic intersection)
+  static final Map<String, String> _genreNameMap = {
+    for (final g in allGenres) (g['slug'] ?? ''): (g['name'] ?? ''),
+  };
+
+  /// Get anime matching selected genres.
+  /// Fetches candidates across all selected genres concurrently,
+  /// placing exact multi-genre matches at the top, followed by all anime matching any searched genre.
   Future<List<AnimeItem>> getAnimeByGenres(List<String> genreSlugs,
       {int page = 1}) async {
     final validSlugs = genreSlugs
@@ -419,68 +336,97 @@ class AnimeService {
     }
 
     try {
-      // 1. Sort genres by specificity so the rarest/most specific genre is primary
-      final sortedSlugs = List<String>.from(validSlugs)
-        ..sort((a, b) =>
-            (_genreSpecificity[a] ?? 50).compareTo(_genreSpecificity[b] ?? 50));
-      final primary = sortedSlugs.first;
-
-      // 2. Fetch candidates concurrently from primary genre pages and filter endpoint
-      final queryParams = validSlugs
-          .map((s) => 'genre%5B%5D=${Uri.encodeQueryComponent(s)}')
-          .join('&');
-
-      final fetchResults = await Future.wait([
-        _fetchCandidatesFromUrl('$baseApi/genres/$primary?page=$page'),
-        _fetchCandidatesFromUrl('$baseApi/genres/$primary?page=${page + 1}'),
-        _fetchCandidatesFromUrl('$baseApi/filter?$queryParams&page=$page'),
-      ]);
-
-      // Deduplicate candidates preserving natural popularity rank
-      final List<AnimeItem> candidates = [];
-      final Set<String> seenKeys = {};
-
-      for (final list in fetchResults) {
-        for (final item in list) {
-          final key = item.id.isNotEmpty ? item.id : item.slug;
-          if (seenKeys.add(key)) {
-            candidates.add(item);
-          }
+      // 1. Fetch pages concurrently for all selected genres (page 1 + page 2 for depth)
+      final List<Future<List<AnimeItem>>> fetchTasks = [];
+      for (final slug in validSlugs) {
+        fetchTasks.add(_fetchCandidatesFromUrl('$baseApi/genres/$slug?page=$page'));
+        if (page == 1) {
+          fetchTasks.add(_fetchCandidatesFromUrl('$baseApi/genres/$slug?page=2'));
         }
       }
 
-      if (candidates.isNotEmpty) {
-        // 3. Concurrently fetch genres for candidates (using fast cache + qtip API)
-        final genreFutures =
-            candidates.map((anime) => getAnimeGenres(anime.id));
-        final allAnimeGenres = await Future.wait(genreFutures);
+      final fetchResults = await Future.wait(fetchTasks);
 
-        // 4. Strictly filter to anime that match ALL required genres
-        final List<AnimeItem> matches = [];
-        for (int i = 0; i < candidates.length; i++) {
-          final anime = candidates[i];
-          final animeGenres = allAnimeGenres[i];
+      // 2. Track anime and matched genres
+      final Map<String, AnimeItem> animeMap = {};
+      final Map<String, Set<String>> animeGenreHits = {};
 
-          // Anime must contain EVERY selected genre
-          final matchesAll = validSlugs.every(
-            (slug) => _matchesGenre(animeGenres, slug),
-          );
+      for (int i = 0; i < fetchResults.length; i++) {
+        final slugIndex = (page == 1) ? (i ~/ 2) : i;
+        final slug = validSlugs[slugIndex];
+        final list = fetchResults[i];
 
-          if (matchesAll) {
-            matches.add(anime.copyWith(genres: animeGenres.toList()));
+        for (final item in list) {
+          final key = item.id.isNotEmpty ? item.id : item.slug;
+          animeMap[key] = item;
+          animeGenreHits.putIfAbsent(key, () => <String>{}).add(slug);
+        }
+      }
+
+      // 3. For candidates that only appeared in 1 genre feed, verify with qtip API
+      // to see if their full genre list also contains other searched genres
+      final candidatesToCheck = animeMap.values
+          .where((item) {
+            final key = item.id.isNotEmpty ? item.id : item.slug;
+            return (animeGenreHits[key]?.length ?? 0) < validSlugs.length;
+          })
+          .take(30)
+          .toList();
+
+      if (candidatesToCheck.isNotEmpty) {
+        try {
+          final genreFutures = candidatesToCheck.map((a) => getAnimeGenres(a.id));
+          final fetchedGenres = await Future.wait(genreFutures)
+              .timeout(const Duration(seconds: 4));
+
+          for (int i = 0; i < fetchedGenres.length; i++) {
+            final fullGenres = fetchedGenres[i];
+            final item = candidatesToCheck[i];
+            final key = item.id.isNotEmpty ? item.id : item.slug;
+
+            for (final s in validSlugs) {
+              if (_matchesGenre(fullGenres, s)) {
+                animeGenreHits[key]?.add(s);
+              }
+            }
           }
-        }
+        } catch (_) {}
+      }
 
-        if (matches.isNotEmpty) {
-          return matches;
-        }
+      // 4. Sort anime by hit count descending (exact multi-matches first),
+      // preserving popularity order within same hit count
+      final allItems = animeMap.values.toList();
+      allItems.sort((a, b) {
+        final keyA = a.id.isNotEmpty ? a.id : a.slug;
+        final keyB = b.id.isNotEmpty ? b.id : b.slug;
+        final hitsA = animeGenreHits[keyA]?.length ?? 0;
+        final hitsB = animeGenreHits[keyB]?.length ?? 0;
+        return hitsB.compareTo(hitsA);
+      });
+
+      // 5. Update items with clear genre labels
+      final List<AnimeItem> enrichedItems = allItems.map((item) {
+        final key = item.id.isNotEmpty ? item.id : item.slug;
+        final matched = animeGenreHits[key] ?? {};
+        final readableMatched = matched.map((s) => _genreNameMap[s] ?? s).toList();
+        final label = readableMatched.isNotEmpty
+            ? readableMatched.join(', ')
+            : item.genreLabel;
+        return item.copyWith(
+          genreLabel: label,
+          genres: matched.toList(),
+        );
+      }).toList();
+
+      if (enrichedItems.isNotEmpty) {
+        return enrichedItems;
       }
     } catch (_) {}
 
     return getPopularAnime();
   }
 
-  /// Get anime by single genre slug from HiAnime
+  /// Get anime by single genre slug from HiAnime (loads up to 2 pages for page 1)
   Future<List<AnimeItem>> getAnimeByGenre(String genreSlug, {int page = 1}) async {
     final slug = genreSlug.trim().toLowerCase();
     if (slug.isEmpty || slug == 'semua') {
@@ -488,11 +434,47 @@ class AnimeService {
     }
 
     try {
-      final url = Uri.parse('$baseApi/genres/$slug?page=$page');
-      final response = await http
-          .get(url, headers: defaultHeaders)
-          .timeout(const Duration(seconds: 12));
+      final List<Future<http.Response>> requests = [
+        http
+            .get(Uri.parse('$baseApi/genres/$slug?page=$page'),
+                headers: defaultHeaders)
+            .timeout(const Duration(seconds: 10)),
+      ];
+      if (page == 1) {
+        requests.add(
+          http
+              .get(Uri.parse('$baseApi/genres/$slug?page=2'),
+                  headers: defaultHeaders)
+              .timeout(const Duration(seconds: 10)),
+        );
+      }
 
+      final responses = await Future.wait(requests);
+      final List<AnimeItem> results = [];
+      final Set<String> seen = {};
+
+      for (final resp in responses) {
+        if (resp.statusCode == 200) {
+          final items = _parseSearchHtml(resp.body);
+          for (final item in items) {
+            final key = item.id.isNotEmpty ? item.id : item.slug;
+            if (seen.add(key)) {
+              results.add(item);
+            }
+          }
+        }
+      }
+
+      if (results.isNotEmpty) return results;
+    } catch (_) {}
+
+    // Fallback to /filter?genre[]=$slug
+    try {
+      final filterUrl = Uri.parse(
+          '$baseApi/filter?genre%5B%5D=${Uri.encodeQueryComponent(slug)}&page=$page');
+      final response = await http
+          .get(filterUrl, headers: defaultHeaders)
+          .timeout(const Duration(seconds: 12));
       if (response.statusCode == 200) {
         final results = _parseSearchHtml(response.body);
         if (results.isNotEmpty) return results;
@@ -1065,35 +1047,100 @@ class AnimeService {
     ];
   }
 
-  /// 8. Paling Dinanti (Most Anticipated matching Screenshot 3)
+  /// 8. Paling Dinanti / Anime Yang Akan Datang (Upcoming Anime)
   Future<List<AnimeItem>> getPalingDinanti() async {
+    return getAkanDatang();
+  }
+
+  Future<List<AnimeItem>> getAkanDatang() async {
     return const [
       AnimeItem(
         id: '151807',
-        slug: 'solo-leveling-season-2-151807',
-        title: 'Solo Leveling Season 2: Arise from the Shadow',
+        slug: 'solo-leveling-season-2-arise-from-the-shadow-84',
+        title: 'Solo Leveling: Arise from the Shadow',
         genreLabel: 'Action, Fantasy',
         posterUrl: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx151807-it355ZgzquUd.png',
-        releaseDate: '2026-10-??',
-        favorites: '34.203 favorites',
+        releaseDate: 'Fall 2026',
+        favorites: '48.210 favorites',
+        statusBadge: 'Segera',
+        isNew: true,
       ),
       AnimeItem(
-        id: '101922',
-        slug: 'demon-slayer-kimetsu-no-yaiba-101922',
-        title: 'Demon Slayer: Hashira Training Arc',
+        id: '171018',
+        slug: 'dandadan-710',
+        title: 'DanDaDan Season 2',
         genreLabel: 'Action, Supernatural',
-        posterUrl: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx101922-WBsBl0ClmgYL.jpg',
-        releaseDate: '2026-10-03',
-        favorites: '29.662 favorites',
+        posterUrl: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx171018-60q1B6GK2Ghb.jpg',
+        releaseDate: 'Winter 2027',
+        favorites: '38.900 favorites',
+        statusBadge: '2027',
+        isNew: true,
       ),
       AnimeItem(
         id: '124080',
-        slug: 'horimiya-124080',
-        title: 'Horimiya',
-        genreLabel: 'Comedy, Romance',
+        slug: 'chainsaw-man-124080',
+        title: 'Chainsaw Man: Reze Arc Movie',
+        genreLabel: 'Action, Supernatural',
         posterUrl: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx124080-3i22mRVPBS0T.jpg',
-        releaseDate: '2026-10-02',
-        favorites: '24.925 favorites',
+        releaseDate: 'Film 2026',
+        favorites: '52.410 favorites',
+        statusBadge: 'Movie',
+        isNew: true,
+      ),
+      AnimeItem(
+        id: '269',
+        slug: 'bleach-thousand-year-blood-war-the-calamity-5',
+        title: 'Bleach: Thousand-Year Blood War Pt. 3',
+        genreLabel: 'Action, Shounen',
+        posterUrl: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx269-d2GmRkJbMopq.png',
+        releaseDate: 'Musim Depan',
+        favorites: '31.420 favorites',
+        statusBadge: 'Segera',
+        isNew: true,
+      ),
+      AnimeItem(
+        id: '113415',
+        slug: 'jujutsu-kaisen-2nd-season-502',
+        title: 'Jujutsu Kaisen: Culling Game',
+        genreLabel: 'Action, Supernatural',
+        posterUrl: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx113415-LHBAeoZDIsnF.jpg',
+        releaseDate: 'TBA 2027',
+        favorites: '64.120 favorites',
+        statusBadge: 'TBA',
+        isNew: true,
+      ),
+      AnimeItem(
+        id: '101922',
+        slug: 'demon-slayer-kimetsu-no-yaiba-hashira-training-arc-320',
+        title: 'Demon Slayer: Infinity Castle Arc',
+        genreLabel: 'Action, Fantasy',
+        posterUrl: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx101922-WBsBl0ClmgYL.jpg',
+        releaseDate: 'Trilogi Film',
+        favorites: '58.910 favorites',
+        statusBadge: 'Movie',
+        isNew: true,
+      ),
+      AnimeItem(
+        id: '154587',
+        slug: 'sousou-no-frieren-154587',
+        title: 'Sousou no Frieren Season 2',
+        genreLabel: 'Adventure, Fantasy',
+        posterUrl: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx154587-qQTzQnEJJ3oB.jpg',
+        releaseDate: 'Musim Baru',
+        favorites: '49.120 favorites',
+        statusBadge: 'Segera',
+        isNew: true,
+      ),
+      AnimeItem(
+        id: '21',
+        slug: 'one-piece-100',
+        title: 'One Piece: Arc Elbaf',
+        genreLabel: 'Action, Adventure',
+        posterUrl: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx21-ELSYx3yMPcKM.jpg',
+        releaseDate: '2026',
+        favorites: '72.300 favorites',
+        statusBadge: 'New Arc',
+        isNew: true,
       ),
     ];
   }
