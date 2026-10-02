@@ -5,7 +5,12 @@ import '../theme/app_theme.dart';
 import 'anime_detail_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key});
+  final bool isTab;
+
+  const HistoryScreen({
+    super.key,
+    this.isTab = false,
+  });
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -184,10 +189,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.canvas,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: !widget.isTab,
+        leading: widget.isTab
+            ? null
+            : IconButton(
+                icon: Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                onPressed: () => Navigator.pop(context),
+              ),
         title: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

@@ -6,11 +6,13 @@ import '../theme/app_theme.dart';
 class StorageService {
   static const String _keyHistory = 'ani_history';
   static const String _keyBookmarks = 'ani_bookmarks';
+  static const String _keyDownloads = 'ani_downloads';
   static const String _keyPrefDub = 'ani_pref_dub';
   static const String _keyPrefPlayer = 'ani_pref_player';
   static const String _keyPrefQuality = 'ani_pref_quality';
   static const String _keySubLanguage = 'ani_pref_sub_lang';
   static const String _keyThemeMode = 'ani_theme_mode';
+  static const String _keyOnboardingCompleted = 'ani_onboarding_completed';
 
   static SharedPreferences? _prefs;
 
@@ -170,6 +172,33 @@ class StorageService {
     return nowBookmarked;
   }
 
+  // --- Downloads ---
+  static List<DownloadItem> getDownloads() {
+    final list = _prefs?.getStringList(_keyDownloads) ?? [];
+    return list.map((item) => DownloadItem.fromJson(item)).toList();
+  }
+
+  static Future<void> saveDownload(DownloadItem item) async {
+    final list = getDownloads();
+    list.removeWhere((d) =>
+        d.animeId == item.animeId && d.episodeNumber == item.episodeNumber);
+    list.insert(0, item);
+    final rawList = list.map((d) => d.toJson()).toList();
+    await _prefs?.setStringList(_keyDownloads, rawList);
+  }
+
+  static Future<void> deleteDownload(String animeId, int episodeNumber) async {
+    final list = getDownloads();
+    list.removeWhere(
+        (d) => d.animeId == animeId && d.episodeNumber == episodeNumber);
+    final rawList = list.map((d) => d.toJson()).toList();
+    await _prefs?.setStringList(_keyDownloads, rawList);
+  }
+
+  static Future<void> clearDownloads() async {
+    await _prefs?.remove(_keyDownloads);
+  }
+
   // --- Preferences ---
   static bool get isDub => _prefs?.getBool(_keyPrefDub) ?? false;
   static Future<void> setDub(bool value) async {
@@ -193,13 +222,13 @@ class StorageService {
 
   // --- Theme Mode ---
   static String get themeModeString =>
-      _prefs?.getString(_keyThemeMode) ?? 'dark';
+      _prefs?.getString(_keyThemeMode) ?? 'light';
 
   static ThemeMode get themeMode {
     final str = themeModeString;
-    if (str == 'light') return ThemeMode.light;
+    if (str == 'dark') return ThemeMode.dark;
     if (str == 'system') return ThemeMode.system;
-    return ThemeMode.dark;
+    return ThemeMode.light;
   }
 
   static Future<void> setThemeMode(ThemeMode mode) async {
@@ -208,5 +237,13 @@ class StorageService {
     if (mode == ThemeMode.system) str = 'system';
     await _prefs?.setString(_keyThemeMode, str);
     AppTheme.updateThemeMode(mode);
+  }
+
+  // --- Onboarding ---
+  static bool get isOnboardingCompleted =>
+      _prefs?.getBool(_keyOnboardingCompleted) ?? false;
+
+  static Future<void> setOnboardingCompleted(bool value) async {
+    await _prefs?.setBool(_keyOnboardingCompleted, value);
   }
 }

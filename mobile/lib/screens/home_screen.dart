@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
-import 'chat_tab.dart';
-import 'explore_tab.dart';
+import 'download_tab.dart';
+import 'favorite_screen.dart';
 import 'home_tab.dart';
 import 'profile_tab.dart';
 import 'schedule_tab.dart';
@@ -29,8 +29,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final List<Widget> tabs = [
       HomeTab(onNavigateTab: _onTabTapped),
       _loadedTabs.contains(1) ? const ScheduleTab() : const SizedBox.shrink(),
-      _loadedTabs.contains(2) ? const ExploreTab() : const SizedBox.shrink(),
-      _loadedTabs.contains(3) ? const ChatTab() : const SizedBox.shrink(),
+      _loadedTabs.contains(2)
+          ? const FavoriteScreen(isTab: true)
+          : const SizedBox.shrink(),
+      _loadedTabs.contains(3)
+          ? const DownloadTab(isTab: true)
+          : const SizedBox.shrink(),
       _loadedTabs.contains(4) ? const ProfileTab() : const SizedBox.shrink(),
     ];
 
@@ -49,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: SafeArea(
           top: false,
           child: SizedBox(
-            height: 62,
+            height: 60,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -57,31 +61,31 @@ class _HomeScreenState extends State<HomeScreen> {
                   index: 0,
                   icon: Icons.home_rounded,
                   activeIcon: Icons.home_filled,
-                  label: 'HOME',
+                  label: 'Home',
                 ),
                 _buildNavItem(
                   index: 1,
                   icon: Icons.calendar_month_outlined,
                   activeIcon: Icons.calendar_month_rounded,
-                  label: 'JADWAL',
+                  label: 'Release Ca...',
                 ),
                 _buildNavItem(
                   index: 2,
-                  icon: Icons.search_rounded,
-                  activeIcon: Icons.search_rounded,
-                  label: 'CARI',
+                  icon: Icons.bookmark_border_rounded,
+                  activeIcon: Icons.bookmark_rounded,
+                  label: 'My List',
                 ),
                 _buildNavItem(
                   index: 3,
-                  icon: Icons.near_me_outlined,
-                  activeIcon: Icons.near_me_rounded,
-                  label: 'CHAT',
+                  icon: Icons.file_download_outlined,
+                  activeIcon: Icons.file_download_rounded,
+                  label: 'Download',
                 ),
                 _buildNavItem(
                   index: 4,
-                  icon: Icons.account_circle_outlined,
-                  activeIcon: Icons.account_circle_rounded,
-                  label: 'PROFILE',
+                  icon: Icons.person_outline_rounded,
+                  activeIcon: Icons.person_rounded,
+                  label: 'Profile',
                 ),
               ],
             ),

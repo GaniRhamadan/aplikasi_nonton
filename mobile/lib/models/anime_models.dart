@@ -19,6 +19,8 @@ class AnimeItem {
   final String? genreLabel;
   final bool isNew;
   final String? statusBadge;
+  final String? status;
+  final String? score;
 
   const AnimeItem({
     required this.id,
@@ -39,6 +41,8 @@ class AnimeItem {
     this.genreLabel,
     this.isNew = false,
     this.statusBadge,
+    this.status,
+    this.score,
   });
 
   String get displayGenre {
@@ -298,3 +302,57 @@ class StreamServerItem {
     this.directM3u8Url,
   });
 }
+
+class DownloadItem {
+  final String animeId;
+  final String animeSlug;
+  final String animeTitle;
+  final String animePoster;
+  final int episodeNumber;
+  final String episodeTitle;
+  final String resolution;
+  final double sizeMb;
+  final int timestamp;
+
+  const DownloadItem({
+    required this.animeId,
+    required this.animeSlug,
+    required this.animeTitle,
+    required this.animePoster,
+    required this.episodeNumber,
+    this.episodeTitle = '',
+    this.resolution = '720p',
+    this.sizeMb = 239.5,
+    this.timestamp = 0,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'animeId': animeId,
+        'animeSlug': animeSlug,
+        'animeTitle': animeTitle,
+        'animePoster': animePoster,
+        'episodeNumber': episodeNumber,
+        'episodeTitle': episodeTitle,
+        'resolution': resolution,
+        'sizeMb': sizeMb,
+        'timestamp': timestamp,
+      };
+
+  factory DownloadItem.fromMap(Map<String, dynamic> map) => DownloadItem(
+        animeId: map['animeId'] ?? '',
+        animeSlug: map['animeSlug'] ?? '',
+        animeTitle: map['animeTitle'] ?? '',
+        animePoster: map['animePoster'] ?? '',
+        episodeNumber: (map['episodeNumber'] as num?)?.toInt() ?? 1,
+        episodeTitle: map['episodeTitle'] ?? '',
+        resolution: map['resolution'] ?? '720p',
+        sizeMb: (map['sizeMb'] as num?)?.toDouble() ?? 239.5,
+        timestamp: (map['timestamp'] as num?)?.toInt() ?? 0,
+      );
+
+  String toJson() => json.encode(toMap());
+
+  factory DownloadItem.fromJson(String source) =>
+      DownloadItem.fromMap(json.decode(source));
+}
+

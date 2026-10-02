@@ -26,6 +26,9 @@ class AnimeService {
       dubEpisodes: 12,
       totalEpisodes: 12,
       type: 'TV',
+      genres: ['Action', 'Adventure', 'Fantasy'],
+      releaseDate: '2024',
+      score: '9.8',
       synopsis:
           'In a world where hunters must battle deadly monsters to protect humanity, Sung Jinwoo, notoriously known as the weakest hunter of all mankind, finds himself in a struggle for survival.',
     ),
@@ -41,6 +44,9 @@ class AnimeService {
       dubEpisodes: 13,
       totalEpisodes: 13,
       type: 'TV',
+      genres: ['Action', 'Adventure', 'Fantasy'],
+      releaseDate: '2025',
+      score: '9.8',
       synopsis:
           'The continuation of Sung Jinwoo journey as the Shadow Monarch, facing greater dungeons and uncovering the origin of the System.',
     ),
@@ -56,6 +62,9 @@ class AnimeService {
       dubEpisodes: 1100,
       totalEpisodes: 1122,
       type: 'TV',
+      genres: ['Action', 'Adventure', 'Comedy', 'Fantasy'],
+      releaseDate: '1999',
+      score: '9.9',
       synopsis:
           'Monkey D. Luffy embarks on a grand adventure with his pirate crew across the Grand Line in search of the legendary treasure known as One Piece.',
     ),
@@ -71,6 +80,9 @@ class AnimeService {
       dubEpisodes: 23,
       totalEpisodes: 23,
       type: 'TV',
+      genres: ['Action', 'Fantasy', 'Supernatural'],
+      releaseDate: '2023',
+      score: '9.8',
       synopsis:
           'Follows the past of Satoru Gojo and Suguru Geto during their days at Tokyo Jujutsu High, and the cataclysmic Shibuya Incident.',
     ),
@@ -86,6 +98,9 @@ class AnimeService {
       dubEpisodes: 8,
       totalEpisodes: 8,
       type: 'TV',
+      genres: ['Action', 'Fantasy', 'Supernatural'],
+      releaseDate: '2024',
+      score: '9.7',
       synopsis:
           'Tanjiro undergoes rigorous training under the highest-ranking swordsmen of the Demon Slayer Corps, the Hashira, preparing for the upcoming final battle.',
     ),
@@ -101,10 +116,149 @@ class AnimeService {
       dubEpisodes: 12,
       totalEpisodes: 12,
       type: 'TV',
+      genres: ['Action', 'Comedy', 'Supernatural', 'Sci-Fi'],
+      releaseDate: '2024',
+      score: '9.6',
       synopsis:
           'High schoolers Momo Ayase, who believes in ghosts, and Okarun, who believes in aliens, find themselves entangled in bizarre supernatural occurrences.',
     ),
+    AnimeItem(
+      id: '124410',
+      slug: 'kanojo-okarishimasu-2nd-season',
+      title: 'Rent-a-Girlfriend Season 2',
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx124410-iScdHzzEqdmk.png',
+      subEpisodes: 12,
+      dubEpisodes: 12,
+      totalEpisodes: 12,
+      type: 'TV',
+      genres: ['Comedy', 'Romance'],
+      releaseDate: '2022',
+      score: '9.7',
+      synopsis: 'Kazuya Kinoshita continues his complicated relationship with rental girlfriend Chizuru Mizuhara.',
+    ),
+    AnimeItem(
+      id: '125367',
+      slug: 'kaguya-sama-wa-kokurasetai-ultra-romantic',
+      title: 'Kaguya-sama: Love is War - Ultra Romantic',
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx125367-blf609eA9b2R.png',
+      subEpisodes: 13,
+      dubEpisodes: 13,
+      totalEpisodes: 13,
+      type: 'TV',
+      genres: ['Comedy', 'Romance', 'Psychological', 'Slice of Life'],
+      releaseDate: '2022',
+      score: '9.8',
+      synopsis: 'The battle of wits between Kaguya Shinomiya and Miyuki Shirogane reaches its romantic climax.',
+    ),
+    AnimeItem(
+      id: '140960',
+      slug: 'spy-x-family',
+      title: 'Spy x Family',
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx140960-YrkSD4mrwAqv.jpg',
+      subEpisodes: 12,
+      dubEpisodes: 12,
+      totalEpisodes: 12,
+      type: 'TV',
+      genres: ['Action', 'Comedy', 'Slice of Life'],
+      releaseDate: '2022',
+      score: '9.8',
+      synopsis: 'A spy known as Twilight creates an unconventional family to complete a top-secret mission.',
+    ),
+    AnimeItem(
+      id: '125124',
+      slug: 'rikei-ga-koi-ni-ochita-no-de-shoumei-shitemita-r-1-sin-theta',
+      title: 'Science Fell in Love, So I Tried to Prove It Season 2',
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx125124-FHz4ND4kJzqu.jpg',
+      subEpisodes: 12,
+      dubEpisodes: 12,
+      totalEpisodes: 12,
+      type: 'TV',
+      genres: ['Comedy', 'Romance'],
+      releaseDate: '2022',
+      score: '9.5',
+      synopsis: 'Two STEM graduate students attempt to quantify and prove love with rigorous scientific methods.',
+    ),
+    AnimeItem(
+      id: '138424',
+      slug: 'karakai-jouzu-no-takagi-san-3',
+      title: 'Teasing Master Takagi-san Season 3',
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx138424-97Nz1P7M3O2d.png',
+      subEpisodes: 12,
+      dubEpisodes: 12,
+      totalEpisodes: 12,
+      type: 'TV',
+      genres: ['Comedy', 'Romance', 'Slice of Life'],
+      releaseDate: '2022',
+      score: '9.8',
+      synopsis: 'Nishikata continues his daily attempts to outwit the charming and clever Takagi-san.',
+    ),
+    AnimeItem(
+      id: '116867',
+      slug: 'itai-no-wa-iya-nano-de-bougyoryoku-ni-kyokufuri-shitai-to-omoimasu-2',
+      title: "BOFURI: I Don't Want to Get Hurt, so I'll Max Out My Defense. Season 2",
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx116867-bXUSi1BWrd9R.jpg',
+      subEpisodes: 12,
+      dubEpisodes: 12,
+      totalEpisodes: 12,
+      type: 'TV',
+      genres: ['Action', 'Adventure', 'Comedy', 'Fantasy', 'Slice of Life'],
+      releaseDate: '2022',
+      score: '9.4',
+      synopsis: 'Maple and her guild explore new levels and obtain increasingly overpowered defensive abilities in NewWorld Online.',
+    ),
+    AnimeItem(
+      id: '112323',
+      slug: 'arifureta-shokugyou-de-sekai-saikyou-2nd-season',
+      title: "Arifureta: From Commonplace to World's Strongest Season 2",
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx112323-C6nlP84x8jH8.png',
+      subEpisodes: 12,
+      dubEpisodes: 12,
+      totalEpisodes: 12,
+      type: 'TV',
+      genres: ['Action', 'Adventure', 'Fantasy', 'Psychological'],
+      releaseDate: '2022',
+      score: '9.6',
+      synopsis: 'Hajime and his party continue their perilous quest through the great labyrinths to return to Earth.',
+    ),
+    AnimeItem(
+      id: '146637',
+      slug: 'orient-awajishima-gekitou-hen',
+      title: 'ORIENT: Awajishima Gekitou-hen',
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx146637-mzZXckqnA2EG.jpg',
+      subEpisodes: 12,
+      dubEpisodes: 12,
+      totalEpisodes: 12,
+      type: 'TV',
+      genres: ['Action', 'Fantasy'],
+      releaseDate: '2022',
+      score: '9.7',
+      synopsis: 'Musashi and Kojiro join the Uesugi Bushidan on Awaji Island to confront terrifying demon gods.',
+    ),
+    AnimeItem(
+      id: '130592',
+      slug: 'hataraku-maou-sama-2nd-season',
+      title: 'The Devil is a Part-Timer! Season 2',
+      posterUrl:
+          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx130592-LAUlhx15mxQu.jpg',
+      subEpisodes: 12,
+      dubEpisodes: 12,
+      totalEpisodes: 12,
+      type: 'TV',
+      genres: ['Action', 'Comedy', 'Fantasy', 'Romance', 'Slice of Life'],
+      releaseDate: '2022',
+      score: '9.8',
+      synopsis: 'Sadao Maou returns to flipped burgers at MgRonald while suddenly becoming a father figure to a mysterious girl from Ente Isla.',
+    ),
   ];
+
 
   static const List<Map<String, String>> allGenres = [
     {'name': 'Semua', 'slug': ''},
@@ -683,7 +837,7 @@ class AnimeService {
           }
         }
 
-        // Sort so the fastest CDN servers (HD-1, HD-2, Vidstream) are primary
+        // Sort servers: HD-1 fast CDN first, then HD-2, Vidstream, and ZokoAnime
         servers.sort((a, b) {
           int priority(String n) {
             final lower = n.toLowerCase();
@@ -1204,4 +1358,115 @@ class AnimeService {
       ),
     ];
   }
+
+  /// 10. Airing Schedule for specific date (from official anime server/API)
+  Future<List<AnimeItem>> getAiringSchedule(DateTime date) async {
+    final startOfDay = DateTime.utc(date.year, date.month, date.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+    final greaterTimestamp = startOfDay.millisecondsSinceEpoch ~/ 1000;
+    final lesserTimestamp = endOfDay.millisecondsSinceEpoch ~/ 1000;
+
+    const query = '''
+query (\$greater: Int, \$lesser: Int) {
+  Page(page: 1, perPage: 50) {
+    airingSchedules(airingAt_greater: \$greater, airingAt_lesser: \$lesser, sort: TIME) {
+      id
+      airingAt
+      episode
+      media {
+        id
+        title {
+          english
+          romaji
+        }
+        coverImage {
+          large
+          medium
+        }
+        genres
+        averageScore
+        type
+        description
+      }
+    }
+  }
 }
+''';
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://graphql.anilist.co'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0',
+        },
+        body: jsonEncode({
+          'query': query,
+          'variables': {
+            'greater': greaterTimestamp,
+            'lesser': lesserTimestamp,
+          },
+        }),
+      ).timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final schedules =
+            data['data']?['Page']?['airingSchedules'] as List? ?? [];
+        final List<AnimeItem> items = [];
+
+        for (var s in schedules) {
+          final media = s['media'];
+          if (media == null) continue;
+          final title = media['title']?['english'] ??
+              media['title']?['romaji'] ??
+              'Unknown Anime';
+          final poster = media['coverImage']?['large'] ??
+              media['coverImage']?['medium'] ??
+              '';
+          final ep = s['episode'] ?? 1;
+          final scoreVal = media['averageScore'];
+          final scoreStr = scoreVal != null
+              ? (scoreVal / 10.0).toStringAsFixed(1)
+              : null;
+          final genres = (media['genres'] as List?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [];
+          final airingTimestamp = s['airingAt'] as int?;
+          String? timeLabel;
+          if (airingTimestamp != null) {
+            final airingLocal = DateTime.fromMillisecondsSinceEpoch(
+              airingTimestamp * 1000,
+            );
+            final hour = airingLocal.hour.toString().padLeft(2, '0');
+            final min = airingLocal.minute.toString().padLeft(2, '0');
+            timeLabel = '$hour:$min';
+          }
+
+          items.add(
+            AnimeItem(
+              id: media['id']?.toString() ?? s['id'].toString(),
+              slug: media['id']?.toString() ?? s['id'].toString(),
+              title: title,
+              posterUrl: poster,
+              totalEpisodes: ep,
+              subEpisodes: ep,
+              episodeLabel: 'Episode $ep',
+              statusBadge: timeLabel != null ? 'Pukul $timeLabel' : null,
+              score: scoreStr,
+              genres: genres,
+              type: media['type']?.toString() ?? 'TV',
+              synopsis: media['description']?.toString() ?? '',
+            ),
+          );
+        }
+        return items;
+      }
+    } catch (_) {}
+
+    return [];
+  }
+}
+

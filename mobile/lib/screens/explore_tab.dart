@@ -4,6 +4,7 @@ import '../models/anime_models.dart';
 import '../services/anime_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/not_found_view.dart';
 import 'anime_detail_screen.dart';
 
 class ExploreTab extends StatefulWidget {
@@ -1166,47 +1167,8 @@ class _ExploreTabState extends State<ExploreTab> {
             else if (displayList.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
-                child: Padding(
-                  padding: const EdgeInsets.all(40),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.search_off_rounded,
-                          size: 48,
-                          color: AppColors.textMuted,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _selectedGenreSlugs.isNotEmpty
-                              ? 'Tidak ada anime dengan kombinasi genre ${_selectedGenreSlugs.map(_getGenreName).join(' + ')}'
-                              : 'Tidak ditemukan anime untuk "${_searchController.text}"',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        ElevatedButton.icon(
-                          onPressed: _clearSearch,
-                          icon: const Icon(Icons.refresh_rounded, size: 16),
-                          label: const Text('Reset Pencarian'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.surfaceMuted,
-                            foregroundColor: AppColors.accent,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 10),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                child: NotFoundView(
+                  keyword: _searchController.text.trim(),
                 ),
               )
             else ...[

@@ -4,10 +4,13 @@
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 APK_PATH="$DIR/mobile/build/app/outputs/flutter-apk/app-debug.apk"
 
-if [ ! -f "$APK_PATH" ]; then
-    echo "File APK belum ditemukan. Pastikan proses build sudah selesai."
+echo "==> Mengompilasi APK AniMobile terbaru (flutter build apk --debug)..."
+cd "$DIR/mobile" && flutter build apk --debug
+if [ $? -ne 0 ]; then
+    echo "Gagal membangun APK. Periksa error di atas."
     exit 1
 fi
+cd "$DIR"
 
 echo "Mendeteksi perangkat Android yang terhubung..."
 adb devices -l

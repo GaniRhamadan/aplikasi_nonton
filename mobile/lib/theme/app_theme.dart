@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class AppColors {
-  static bool isDarkMode = true;
+  static bool isDarkMode = false;
 
   // Canvas & Surfaces
   static Color get canvas =>
-      isDarkMode ? const Color(0xFF0C0D11) : const Color(0xFFF6F8FC);
+      isDarkMode ? const Color(0xFF0C0D11) : const Color(0xFFFFFFFF);
   static Color get surface =>
       isDarkMode ? const Color(0xFF14151B) : const Color(0xFFFFFFFF);
   static Color get surfaceMuted =>
@@ -32,20 +32,22 @@ class AppColors {
   static Color get textMuted =>
       isDarkMode ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
 
-  // Brand Accent (Anime Orange / Coral)
-  static const Color accent = Color(0xFFFA5A32);
-  static const Color accentHover = Color(0xFFFF6E40);
+  // Brand Accent (Vibrant Emerald Green)
+  static const Color accent = Color(0xFF16D458);
+  static const Color accentHover = Color(0xFF26E068);
   static Color get accentMuted =>
-      isDarkMode ? const Color(0x28FA5A32) : const Color(0x18FA5A32);
+      isDarkMode ? const Color(0x2816D458) : const Color(0x1816D458);
   static Color get accentBorder =>
-      isDarkMode ? const Color(0x60FA5A32) : const Color(0x35FA5A32);
+      isDarkMode ? const Color(0x6016D458) : const Color(0x3516D458);
 
   // UI Specific Tokens
+  static const Color animePlayRed = Color(0xFF16D458);
   static const Color viewsRed = Color(0xFFFF3B30);
-  static const Color favYellow = Color(0xFFFFCC00);
+  static const Color favYellow = Color(0xFFFFB800);
   static const Color dateCyan = Color(0xFF38BDF8);
   static const Color badgePurple = Color(0xFFC084FC);
   static const Color success = Color(0xFF30D158);
+  static const Color badgeSubIndo = Color(0xFF1E293B);
 
   // Bottom Navigation Bar
   static Color get navBackground =>
@@ -56,7 +58,7 @@ class AppColors {
 
 class AppTheme {
   static final ValueNotifier<ThemeMode> themeNotifier =
-      ValueNotifier<ThemeMode>(ThemeMode.dark);
+      ValueNotifier<ThemeMode>(ThemeMode.light);
 
   static void updateThemeMode(ThemeMode mode) {
     themeNotifier.value = mode;

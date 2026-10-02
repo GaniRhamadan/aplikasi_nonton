@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/anime_models.dart';
 import '../services/anime_service.dart';
@@ -328,7 +329,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'sub-id-overlay';
-            overlay.style.cssText = 'position:fixed;bottom:14%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#FFFFFF;padding:6px 16px;border-radius:8px;font-size:16px;font-weight:700;text-align:center;max-width:92%;z-index:2147483647;pointer-events:none;display:none;line-height:1.35;font-family:system-ui,-apple-system,sans-serif;text-shadow:0 2px 4px rgba(0,0,0,0.95);border:1.5px solid rgba(250,90,50,0.85);box-shadow:0 4px 16px rgba(0,0,0,0.7);';
+            overlay.style.cssText = 'position:fixed;bottom:12%;left:50%;transform:translateX(-50%);background:transparent !important;color:#FFFFFF;padding:4px 12px;border:none !important;box-shadow:none !important;font-size:16.5px;font-weight:700;text-align:center;max-width:92%;z-index:2147483647;pointer-events:none;display:none;line-height:1.25;font-family:system-ui,-apple-system,sans-serif;text-shadow:-1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000, 0 2px 4px rgba(0,0,0,0.95);';
             playerContainer.appendChild(overlay);
           } else if (overlay.parentElement !== playerContainer) {
             playerContainer.appendChild(overlay);
@@ -613,33 +614,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
           if (!window.__cueObserverAttached) {
             window.__cueObserverAttached = true;
-            var observer = new MutationObserver(function() {
-              scanCues();
-            });
-            observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+            var cueContainer = document.querySelector('.jw-text-track-display, .vjs-text-track-display, .art-subtitles, div[class*="subtitle"]');
+            if (cueContainer) {
+              var observer = new MutationObserver(function() {
+                scanCues();
+              });
+              observer.observe(cueContainer, { childList: true, subtree: true });
+            }
           }
 
-          // 6. Inject "Indonesian" into player CC popup menu
+          // 6. Inject "Indonesian" into player CC popup menu (lightweight & targeted)
           function injectIndonesianOptionIntoPlayerCC() {
             try {
-              var allElems = document.querySelectorAll('*');
-              var sampleItem = null;
-
-              for (var i = 0; i < allElems.length; i++) {
-                var el = allElems[i];
-                var t = (el.innerText || el.textContent || '').trim();
-                if (t === 'German' || t === 'Italian' || t === 'English' || t === 'Russian' || t === 'Spanish') {
-                  if (el.children.length <= 2 && el.offsetWidth > 0) {
-                    sampleItem = el;
-                    break;
-                  }
-                }
-              }
-
-              if (!sampleItem || !sampleItem.parentElement) return;
-              var container = sampleItem.parentElement;
-
-              var existing = container.querySelector('.sub-id-custom-cc');
+              var existing = document.getElementById('sub-id-option');
               if (existing) {
                 if (window.__subIndoEnabled) {
                   existing.style.color = '#FA5A32';
@@ -650,6 +637,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 }
                 return;
               }
+
+              // Targeted menu item query to prevent layout thrashing
+              var menuItems = document.querySelectorAll(
+                '.jw-settings-content li, .mg3-menu-item, [role="menuitem"], [role="option"], ul.jw-reset > li, .jw-reset li, div[class*="menu"] li'
+              );
+              var sampleItem = null;
+
+              for (var i = 0; i < menuItems.length; i++) {
+                var el = menuItems[i];
+                var t = (el.innerText || el.textContent || '').trim();
+                if (t === 'German' || t === 'Italian' || t === 'English' || t === 'Russian' || t === 'Spanish' || t === 'Off') {
+                  if (el.children.length <= 2) {
+                    sampleItem = el;
+                    break;
+                  }
+                }
+              }
+
+              if (!sampleItem || !sampleItem.parentElement) return;
+              var container = sampleItem.parentElement;
 
               var indoOption = sampleItem.cloneNode(true);
               indoOption.classList.add('sub-id-custom-cc');
@@ -725,16 +732,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
           scanCues();
           injectIndonesianOptionIntoPlayerCC();
 
-          // Continuous polling loop
+          // Hook into user clicks on player controls to inject instantly
+          if (!window.__playerClickHooked) {
+            window.__playerClickHooked = true;
+            document.addEventListener('click', function() {
+              setTimeout(function() {
+                if (!document.getElementById('sub-id-option')) {
+                  injectIndonesianOptionIntoPlayerCC();
+                }
+              }, 120);
+            }, true);
+          }
+
+          // Gentle fallback polling loop (1500ms)
           if (window.__subPoller) clearInterval(window.__subPoller);
           window.__subPoller = setInterval(function() {
             if (window.__subIndoEnabled) {
-              activateCaptions();
-              tryLoadVttDirectly();
-              scanCues();
-              injectIndonesianOptionIntoPlayerCC();
+              if (!window.__vttLoaded) tryLoadVttDirectly();
+              if (!document.getElementById('sub-id-option')) injectIndonesianOptionIntoPlayerCC();
             }
-          }, 250);
+          }, 1500);
         } catch(e) {}
       })();
     ''';
@@ -757,10 +774,69 @@ class _PlayerScreenState extends State<PlayerScreen> {
       )
       ..setNavigationDelegate(
         NavigationDelegate(
+          onNavigationRequest: (NavigationRequest request) {
+            final targetUrl = request.url.trim().toLowerCase();
+            // Block mobile app intents, market, apk downloads
+            if (targetUrl.startsWith('intent:') ||
+                targetUrl.startsWith('market:') ||
+                targetUrl.startsWith('tel:') ||
+                targetUrl.startsWith('sms:') ||
+                targetUrl.startsWith('whatsapp:') ||
+                targetUrl.endsWith('.apk') ||
+                targetUrl.contains('/download/')) {
+              return NavigationDecision.prevent;
+            }
+            // Block ad networks, redirects, search engines, gambling/slot domains
+            const adKeywords = [
+              'google.com/search',
+              'google.com/url',
+              'bing.com',
+              'yahoo.com',
+              'slot',
+              'judi',
+              'gacor',
+              'poker',
+              'casino',
+              'bet88',
+              'togel',
+              'adsterra',
+              'popcash',
+              'exoclick',
+              'propeller',
+              'clickadu',
+              'syndication',
+              'histats',
+              'adkeeper',
+              'popunder',
+              'traffic',
+              'banner',
+              'track',
+              'zeus',
+              'olympus',
+              'pragmatic'
+            ];
+            for (final kw in adKeywords) {
+              if (targetUrl.contains(kw)) {
+                return NavigationDecision.prevent;
+              }
+            }
+            return NavigationDecision.navigate;
+          },
           onPageFinished: (finishedUrl) {
             _webViewController?.runJavaScript('''
               try {
-                var el = document.getElementById('megaplay-player');
+                window.open = function() { return null; };
+                window.openPopup = function() { return null; };
+                var adStyle = document.getElementById('ad-shield-style');
+                if (!adStyle) {
+                  adStyle = document.createElement('style');
+                  adStyle.id = 'ad-shield-style';
+                  adStyle.innerHTML = 'a[target="_blank"]:not([href*="hianime"]):not([href*="zoko"]) { display: none !important; pointer-events: none !important; } iframe:not([src*="megaplay"]):not([src*="megacloud"]):not([src*="zokoanime"]):not([src*="vidstream"]):not([id*="player"]) { display: none !important; pointer-events: none !important; } .adsbox, div[class*="banner"], div[id*="banner"] { display: none !important; }';
+                  document.head.appendChild(adStyle);
+                }
+
+                var el = document.getElementById('megaplay-player') ||
+                         document.querySelector('#player');
                 if (el) {
                   el.style.width = '100vw';
                   el.style.height = '100vh';
@@ -780,13 +856,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
             });
           },
         ),
-      )
-      ..loadRequest(
-        Uri.parse(url),
-        headers: {
-          'Referer': 'https://hianime.at/',
-        },
       );
+
+    final platform = _webViewController!.platform;
+    if (platform is AndroidWebViewController) {
+      platform.setMediaPlaybackRequiresUserGesture(false);
+      platform.setOverScrollMode(WebViewOverScrollMode.never);
+    }
+
+    _webViewController!.loadRequest(
+      Uri.parse(url),
+      headers: {
+        'Referer': 'https://hianime.at/',
+      },
+    );
   }
 
   void _toggleSubtitleIndonesia() {
@@ -1594,43 +1677,32 @@ class _PlayerScreenState extends State<PlayerScreen> {
           WebViewWidget(controller: _webViewController!),
           if (_subIndoEnabled && _currentSubtitleText.isNotEmpty)
             Positioned(
-              bottom: _isFullscreen ? 44 : 26,
-              left: 14,
-              right: 14,
+              bottom: _isFullscreen ? 36 : 18,
+              left: 16,
+              right: 16,
               child: IgnorePointer(
                 child: Center(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: AppColors.accent.withValues(alpha: 0.9),
-                        width: 1.4,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.7),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
+                        horizontal: 14, vertical: 4),
+                    decoration: const BoxDecoration(
+                      color: Colors.transparent,
                     ),
                     child: Text(
                       _currentSubtitleText,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 15.5,
+                        fontSize: 16.5,
                         fontWeight: FontWeight.w700,
-                        height: 1.3,
+                        letterSpacing: 0.25,
+                        height: 1.25,
                         shadows: [
-                          Shadow(
-                            blurRadius: 4,
-                            color: Colors.black,
-                            offset: Offset(0, 1),
-                          ),
+                          Shadow(offset: Offset(-1.5, -1.5), color: Colors.black, blurRadius: 1),
+                          Shadow(offset: Offset(1.5, -1.5), color: Colors.black, blurRadius: 1),
+                          Shadow(offset: Offset(1.5, 1.5), color: Colors.black, blurRadius: 1),
+                          Shadow(offset: Offset(-1.5, 1.5), color: Colors.black, blurRadius: 1),
+                          Shadow(offset: Offset(0, 2), color: Colors.black, blurRadius: 5),
                         ],
                       ),
                     ),
