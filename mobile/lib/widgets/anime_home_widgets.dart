@@ -1467,7 +1467,7 @@ class AnimePlayNoticeModal {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Pemberitahuan AnimePlay',
+                    'Pemberitahuan Anirama',
                     style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 17,
@@ -1524,7 +1524,7 @@ class AnimePlayNoticeModal {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Selamat datang di AnimePlay! Server streaming aktif dengan subtitle bahasa Indonesia berkualitas tinggi, kualitas video 360p - 1080p HD.',
+                      'Selamat datang di Anirama! Server streaming aktif dengan subtitle bahasa Indonesia berkualitas tinggi, kualitas video 360p - 1080p HD.',
                       style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,

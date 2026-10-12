@@ -23,11 +23,11 @@ Future<void> main() async {
   final initialMode = StorageService.themeMode;
   AppTheme.updateThemeMode(initialMode);
 
-  runApp(const AniMobileApp());
+  runApp(const AniramaApp());
 }
 
-class AniMobileApp extends StatelessWidget {
-  const AniMobileApp({super.key});
+class AniramaApp extends StatelessWidget {
+  const AniramaApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +35,7 @@ class AniMobileApp extends StatelessWidget {
       valueListenable: AppTheme.themeNotifier,
       builder: (context, currentMode, _) {
         return MaterialApp(
-          title: 'AnimePlay',
+          title: 'Anirama',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,

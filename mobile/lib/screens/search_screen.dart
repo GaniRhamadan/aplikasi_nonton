@@ -10,10 +10,12 @@ import 'sort_filter_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   final bool autoFocus;
+  final bool isTab;
 
   const SearchScreen({
     super.key,
     this.autoFocus = true,
+    this.isTab = false,
   });
 
   @override
@@ -371,6 +373,140 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
+  static const List<String> _quickGenres = [
+    'Action',
+    'Romance',
+    'Comedy',
+    'Fantasy',
+    'Isekai',
+    'Shounen',
+    'Slice of Life',
+    'Adventure',
+    'Sci-Fi',
+    'Supernatural',
+    'Drama',
+    'Mystery',
+    'Sports',
+    'Horror',
+  ];
+
+  Widget _buildGenreSection() {
+    return Container(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.category_rounded,
+                  size: 15,
+                  color: AppColors.accent,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Kategori Genre',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (_selectedGenreSlugs.isNotEmpty ||
+                    (_currentFilter.genre.isNotEmpty &&
+                        _currentFilter.genre != 'All')) ...[
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedGenreSlugs.clear();
+                        _currentFilter = _currentFilter.copyWith(genre: 'All');
+                      });
+                      _applySearch();
+                    },
+                    child: const Text(
+                      'Reset Genre',
+                      style: TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 34,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _quickGenres.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final g = _quickGenres[index];
+                final slug = _slugForGenre(g);
+                final isSelected = _selectedGenreSlugs.contains(slug) ||
+                    _currentFilter.genre == g;
+
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      if (isSelected) {
+                        _selectedGenreSlugs.clear();
+                        _currentFilter = _currentFilter.copyWith(genre: 'All');
+                      } else {
+                        _selectedGenreSlugs.clear();
+                        _selectedGenreSlugs.add(slug);
+                        _currentFilter = _currentFilter.copyWith(genre: g);
+                      }
+                    });
+                    _applySearch();
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.accent
+                          : Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF1E2621)
+                              : const Color(0xFFF1FAF4),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: isSelected
+                            ? AppColors.accent
+                            : AppColors.accent.withValues(alpha: 0.35),
+                        width: 1,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        g,
+                        style: TextStyle(
+                          color: isSelected
+                              ? Colors.white
+                              : AppColors.textPrimary,
+                          fontSize: 12,
+                          fontWeight:
+                              isSelected ? FontWeight.w800 : FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _applySearch() async {
     final query = _searchController.text.trim();
     final hasQuery = query.isNotEmpty;
@@ -678,6 +814,9 @@ class _SearchScreenState extends State<SearchScreen> {
                 ],
               ),
             ),
+
+            // Dedicated Jelajah Kategori Genre Bar (Quick 1-tap genre filter)
+            if (!isSearching) _buildGenreSection(),
 
             // Horizontal Active Filters Bar (Shown when filters are active)
             if (isSearching && _activeFilterChips.isNotEmpty)

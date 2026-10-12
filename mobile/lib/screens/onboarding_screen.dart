@@ -40,7 +40,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final List<Map<String, String>> _onboardingPages = [
     {
-      'title': 'Welcome to Animax',
+      'title': 'Welcome to Anirama',
       'subtitle':
           'The best streaming anime app of the century to entertain you every day',
     },

@@ -399,7 +399,7 @@ class _SettingsTabState extends State<SettingsTab> {
                     onPressed: () {
                       showAboutDialog(
                         context: context,
-                        applicationName: 'ani-cli Mobile',
+                        applicationName: 'Anirama',
                         applicationVersion: 'v${UpdateService.currentVersion}',
                         applicationIcon: const Icon(Icons.movie_filter_rounded,
                             size: 40, color: AppColors.accent),
@@ -407,7 +407,7 @@ class _SettingsTabState extends State<SettingsTab> {
                             'Lisensi: GNU General Public License v3.0 (GPLv3)\n\n'
                             'Karya turunan dari proyek open-source pystardust/ani-cli.\n'
                             'Hak Cipta (C) 2021-2024 pystardust dan kontributor.\n'
-                            'Hak Cipta (C) 2024-2026 Pengembang Mobile.\n\n'
+                            'Hak Cipta (C) 2024-2026 Anirama Team & Kontributor.\n\n'
                             'Seluruh kode sumber bebas digunakan, dimodifikasi, dan didistribusikan ulang sesuai dengan ketentuan GNU General Public License v3.0.',
                       );
                     },

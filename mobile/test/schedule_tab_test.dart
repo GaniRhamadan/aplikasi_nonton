@@ -58,4 +58,25 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('ScheduleTab renders SEN, SEL day tabs and anime grid cards',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: ScheduleTab(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify day tabs exist
+    expect(find.text('SEN'), findsOneWidget);
+    expect(find.text('SEL'), findsOneWidget);
+
+    // Tap SEL tab
+    await tester.tap(find.text('SEL'));
+    await tester.pumpAndSettle();
+
+    // Verify GridView is used for cards
+    expect(find.byType(GridView), findsOneWidget);
+  });
 }

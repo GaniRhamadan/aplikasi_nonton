@@ -211,6 +211,10 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   void _openSearchScreen() {
+    if (widget.onNavigateTab != null) {
+      widget.onNavigateTab!(2);
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(

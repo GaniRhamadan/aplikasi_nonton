@@ -5,6 +5,7 @@ import 'download_tab.dart';
 import 'favorite_screen.dart';
 import 'home_tab.dart';
 import 'schedule_tab.dart';
+import 'search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,7 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final Set<int> _loadedTabs = {0};
 
   void _onTabTapped(int index) {
-    if (index == 2) {
+    if (index == 3) {
       StorageService.refreshBookmarks();
     }
     setState(() {
@@ -33,9 +34,12 @@ class _HomeScreenState extends State<HomeScreen> {
       HomeTab(onNavigateTab: _onTabTapped),
       _loadedTabs.contains(1) ? const ScheduleTab() : const SizedBox.shrink(),
       _loadedTabs.contains(2)
-          ? const FavoriteScreen(isTab: true)
+          ? const SearchScreen(isTab: true, autoFocus: false)
           : const SizedBox.shrink(),
       _loadedTabs.contains(3)
+          ? const FavoriteScreen(isTab: true)
+          : const SizedBox.shrink(),
+      _loadedTabs.contains(4)
           ? const DownloadTab(isTab: true)
           : const SizedBox.shrink(),
     ];
@@ -73,12 +77,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 _buildNavItem(
                   index: 2,
+                  icon: Icons.search_rounded,
+                  activeIcon: Icons.search_rounded,
+                  label: 'Cari',
+                ),
+                _buildNavItem(
+                  index: 3,
                   icon: Icons.bookmark_border_rounded,
                   activeIcon: Icons.bookmark_rounded,
                   label: 'My List',
                 ),
                 _buildNavItem(
-                  index: 3,
+                  index: 4,
                   icon: Icons.file_download_outlined,
                   activeIcon: Icons.file_download_rounded,
                   label: 'Download',

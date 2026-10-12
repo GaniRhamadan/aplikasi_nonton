@@ -30,7 +30,7 @@ class UpdateInfo {
 }
 
 class UpdateService {
-  /// Current installed version of AniMobile
+  /// Current installed version of Anirama
   static const String currentVersion = '1.0.2';
   static const int currentVersionCode = 3;
 
@@ -105,7 +105,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       _otaSubscription = OtaUpdate()
           .execute(
         widget.updateInfo.downloadUrl,
-        destinationFilename: 'AniMobile.apk',
+        destinationFilename: 'Anirama.apk',
       )
           .listen(
         (OtaEvent event) {
