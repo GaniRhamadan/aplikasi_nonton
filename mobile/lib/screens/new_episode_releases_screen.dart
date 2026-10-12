@@ -6,7 +6,14 @@ import 'anime_detail_screen.dart';
 import 'search_screen.dart';
 
 class NewEpisodeReleasesScreen extends StatefulWidget {
-  const NewEpisodeReleasesScreen({super.key});
+  final String title;
+  final List<AnimeItem>? initialItems;
+
+  const NewEpisodeReleasesScreen({
+    super.key,
+    this.title = 'New Episode Releases',
+    this.initialItems,
+  });
 
   @override
   State<NewEpisodeReleasesScreen> createState() =>
@@ -15,117 +22,35 @@ class NewEpisodeReleasesScreen extends StatefulWidget {
 
 class _NewEpisodeReleasesScreenState extends State<NewEpisodeReleasesScreen> {
   final AnimeService _animeService = AnimeService();
-
-  // Curated initial seed list matching the reference screenshot exactly
-  static final List<AnimeItem> _initialReleases = [
-    const AnimeItem(
-      id: '132405',
-      slug: 'sono-bisque-doll-wa-koi-wo-suru',
-      title: 'My Dress-Up Darling',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx132405-qP7FQYGmNI3d.jpg',
-      score: '9.5',
-      episodeLabel: 'Episode 10',
-      status: 'Ongoing',
-    ),
-    const AnimeItem(
-      id: '125367',
-      slug: 'kaguya-sama-wa-kokurasetai-ultra-romantic',
-      title: 'Kaguya-sama: Love Is War',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx125367-1yuq9NFcQuLI.png',
-      score: '9.8',
-      episodeLabel: 'Episode 09',
-      status: 'Ongoing',
-    ),
-    const AnimeItem(
-      id: '131942',
-      slug: 'jojo-no-kimyou-na-bouken-stone-ocean',
-      title: 'JoJo\'s Bizarre Adventure: Stone Ocean',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx131942-rermlZ9lplHX.png',
-      score: '9.7',
-      episodeLabel: 'Episode 14',
-      status: 'Ongoing',
-    ),
-    const AnimeItem(
-      id: '21',
-      slug: 'one-piece',
-      title: 'One Piece',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx21-ELSYx3yMPcKM.jpg',
-      score: '9.6',
-      episodeLabel: 'Episode 1080',
-      status: 'Ongoing',
-    ),
-    const AnimeItem(
-      id: '97938',
-      slug: 'boruto-naruto-next-generations',
-      title: 'Boruto: Naruto Next Generations',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx97938-BnF6M5yTaNB1.jpg',
-      score: '9.7',
-      episodeLabel: 'Episode 280',
-      status: 'Ongoing',
-    ),
-    const AnimeItem(
-      id: '111321',
-      slug: 'tate-no-yuusha-no-nariagari-season-2',
-      title: 'The Rising of the Shield Hero 2',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx111321-dIr3dEKOIPer.png',
-      score: '9.6',
-      episodeLabel: 'Episode 12',
-      status: 'Ongoing',
-    ),
-    const AnimeItem(
-      id: '113415',
-      slug: 'jujutsu-kaisen',
-      title: 'Jujutsu Kaisen',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx113415-LHBAeoZDIsnF.jpg',
-      score: '9.7',
-      episodeLabel: 'Episode 24',
-      status: 'Ongoing',
-    ),
-    const AnimeItem(
-      id: '151807',
-      slug: 'solo-leveling',
-      title: 'Solo Leveling',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx151807-it355ZgzquUd.png',
-      score: '9.8',
-      episodeLabel: 'Episode 12',
-      status: 'Ongoing',
-    ),
-  ];
-
   List<AnimeItem> _releasesList = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _releasesList = List.from(_initialReleases);
-    _loadDynamicData();
+    if (widget.initialItems != null && widget.initialItems!.isNotEmpty) {
+      _releasesList = widget.initialItems!;
+      _isLoading = false;
+    } else {
+      _loadDynamicData();
+    }
   }
 
   Future<void> _loadDynamicData() async {
+    setState(() => _isLoading = true);
     try {
       final fetched = await _animeService.getEpisodeBaru();
-      if (mounted && fetched.isNotEmpty) {
-        final List<AnimeItem> merged = List.from(_initialReleases);
-        for (var item in fetched) {
-          if (!merged.any((m) =>
-              m.title.toLowerCase() == item.title.toLowerCase() ||
-              m.slug == item.slug)) {
-            merged.add(item);
-          }
-        }
+      if (mounted) {
         setState(() {
-          _releasesList = merged;
+          _releasesList = fetched;
+          _isLoading = false;
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   void _openSearch() {
@@ -162,7 +87,7 @@ class _NewEpisodeReleasesScreenState extends State<NewEpisodeReleasesScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'New Episode Releases',
+          widget.title,
           style: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 20,
@@ -183,16 +108,40 @@ class _NewEpisodeReleasesScreenState extends State<NewEpisodeReleasesScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: GridView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 14,
-          mainAxisSpacing: 14,
-          childAspectRatio: 0.70,
-        ),
-        itemCount: _releasesList.length,
-        itemBuilder: (context, index) {
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.accent),
+            )
+          : _releasesList.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.movie_outlined, size: 48, color: AppColors.textMuted),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Belum ada rilis episode baru',
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton.icon(
+                        onPressed: _loadDynamicData,
+                        icon: const Icon(Icons.refresh, color: AppColors.accent),
+                        label: const Text('Muat Ulang', style: TextStyle(color: AppColors.accent)),
+                      ),
+                    ],
+                  ),
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 14,
+                    mainAxisSpacing: 14,
+                    childAspectRatio: 0.70,
+                  ),
+                  itemCount: _releasesList.length,
+                  itemBuilder: (context, index) {
           final anime = _releasesList[index];
           final rating =
               (anime.score != null && anime.score!.isNotEmpty && anime.score != '0')

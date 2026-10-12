@@ -287,11 +287,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   static String _slugForGenre(String name) {
-    return name
-        .toLowerCase()
-        .replaceAll(' ', '-')
-        .replaceAll('&', 'and')
-        .replaceAll(',', '');
+    return AnimeService.slugForGenreName(name);
   }
 
   Future<void> _openSortFilterScreen() async {
@@ -773,7 +769,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                               ),
                                             ),
                                           ),
-                                          // Top-Left Emerald Green Rating Badge
+                                          // Top-Left Rating or Akan Datang Badge
                                           Positioned(
                                             top: 8,
                                             left: 8,
@@ -784,12 +780,16 @@ class _SearchScreenState extends State<SearchScreen> {
                                                 vertical: 2.5,
                                               ),
                                               decoration: BoxDecoration(
-                                                color: AppColors.accent,
+                                                color: anime.isUpcoming
+                                                    ? Colors.amber.shade900
+                                                    : AppColors.accent,
                                                 borderRadius:
                                                     BorderRadius.circular(6),
                                               ),
                                               child: Text(
-                                                score,
+                                                anime.isUpcoming
+                                                    ? 'Akan Datang'
+                                                    : score,
                                                 style: const TextStyle(
                                                   color: Colors.white,
                                                   fontSize: 10,
@@ -798,6 +798,39 @@ class _SearchScreenState extends State<SearchScreen> {
                                               ),
                                             ),
                                           ),
+                                          if (anime.isUpcoming &&
+                                              anime.releaseDate != null &&
+                                              anime.releaseDate!.isNotEmpty)
+                                            Positioned(
+                                              bottom: 8,
+                                              left: 8,
+                                              right: 8,
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 6,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black
+                                                      .withValues(alpha: 0.75),
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  'Rilis: ${anime.releaseDate}',
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  textAlign: TextAlign.center,
+                                                  style: const TextStyle(
+                                                    color: Colors.amber,
+                                                    fontSize: 9.5,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
                                         ],
                                       ),
                                     ),
@@ -825,7 +858,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                     // Direct tap on thumbnail triggers instant playback (No Login Needed!)
                                     GestureDetector(
                                       onTap: () =>
-                                          _openDetail(anime, autoPlay: true),
+                                          _openDetail(anime, autoPlay: !anime.isUpcoming),
                                       behavior: HitTestBehavior.opaque,
                                       child: Container(
                                         width: 124,
@@ -869,12 +902,14 @@ class _SearchScreenState extends State<SearchScreen> {
                                                   ),
                                                 ),
                                               ),
-                                              // Centered Play Button: White circle with black play arrow
+                                              // Centered Play Button or Schedule Icon
                                               Container(
                                                 width: 24,
                                                 height: 24,
                                                 decoration: BoxDecoration(
-                                                  color: Colors.white,
+                                                  color: anime.isUpcoming
+                                                      ? Colors.amber.shade700
+                                                      : Colors.white,
                                                   shape: BoxShape.circle,
                                                   boxShadow: [
                                                     BoxShadow(
@@ -887,11 +922,15 @@ class _SearchScreenState extends State<SearchScreen> {
                                                     ),
                                                   ],
                                                 ),
-                                                child: const Center(
+                                                child: Center(
                                                   child: Icon(
-                                                    Icons.play_arrow_rounded,
-                                                    color: Colors.black,
-                                                    size: 16,
+                                                    anime.isUpcoming
+                                                        ? Icons.schedule_rounded
+                                                        : Icons.play_arrow_rounded,
+                                                    color: anime.isUpcoming
+                                                        ? Colors.white
+                                                        : Colors.black,
+                                                    size: 15,
                                                   ),
                                                 ),
                                               ),

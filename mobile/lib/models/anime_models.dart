@@ -45,6 +45,29 @@ class AnimeItem {
     this.score,
   });
 
+  bool get isUpcoming {
+    final s = (status ?? '').toLowerCase().trim();
+    final sb = (statusBadge ?? '').toLowerCase().trim();
+    if (s.contains('not yet') ||
+        s.contains('upcoming') ||
+        s.contains('akan datang') ||
+        s.contains('segera') ||
+        s.contains('tba')) {
+      return true;
+    }
+    if (sb.contains('not yet') ||
+        sb.contains('upcoming') ||
+        sb.contains('akan datang') ||
+        sb.contains('segera') ||
+        sb.contains('tba')) {
+      return true;
+    }
+    if (type.contains('(? eps)')) {
+      return true;
+    }
+    return false;
+  }
+
   String get displayGenre {
     if (genreLabel != null && genreLabel!.isNotEmpty) return genreLabel!;
     if (genres.isNotEmpty) return genres.take(3).join(', ');
@@ -52,6 +75,7 @@ class AnimeItem {
   }
 
   String get displayEpisode {
+    if (isUpcoming) return 'Akan Datang';
     if (episodeLabel != null && episodeLabel!.isNotEmpty) return episodeLabel!;
     if (subEpisodes > 0) return 'Episode $subEpisodes';
     if (totalEpisodes > 0) return 'Episode $totalEpisodes';
@@ -103,6 +127,8 @@ class AnimeItem {
     String? genreLabel,
     bool? isNew,
     String? statusBadge,
+    String? status,
+    String? score,
   }) {
     return AnimeItem(
       id: id ?? this.id,
@@ -123,6 +149,8 @@ class AnimeItem {
       genreLabel: genreLabel ?? this.genreLabel,
       isNew: isNew ?? this.isNew,
       statusBadge: statusBadge ?? this.statusBadge,
+      status: status ?? this.status,
+      score: score ?? this.score,
     );
   }
 
@@ -145,6 +173,9 @@ class AnimeItem {
       'episodeLabel': episodeLabel,
       'genreLabel': genreLabel,
       'isNew': isNew,
+      'statusBadge': statusBadge,
+      'status': status,
+      'score': score,
     };
   }
 
@@ -167,6 +198,9 @@ class AnimeItem {
       episodeLabel: map['episodeLabel'],
       genreLabel: map['genreLabel'],
       isNew: map['isNew'] ?? false,
+      statusBadge: map['statusBadge'],
+      status: map['status'],
+      score: map['score'],
     );
   }
 
@@ -204,12 +238,7 @@ class EpisodeItem {
   });
 
   Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'number': number,
-      'title': title,
-      'slug': slug,
-    };
+    return {'id': id, 'number': number, 'title': title, 'slug': slug};
   }
 
   factory EpisodeItem.fromMap(Map<String, dynamic> map) {
@@ -327,28 +356,28 @@ class DownloadItem {
   });
 
   Map<String, dynamic> toMap() => {
-        'animeId': animeId,
-        'animeSlug': animeSlug,
-        'animeTitle': animeTitle,
-        'animePoster': animePoster,
-        'episodeNumber': episodeNumber,
-        'episodeTitle': episodeTitle,
-        'resolution': resolution,
-        'sizeMb': sizeMb,
-        'timestamp': timestamp,
-      };
+    'animeId': animeId,
+    'animeSlug': animeSlug,
+    'animeTitle': animeTitle,
+    'animePoster': animePoster,
+    'episodeNumber': episodeNumber,
+    'episodeTitle': episodeTitle,
+    'resolution': resolution,
+    'sizeMb': sizeMb,
+    'timestamp': timestamp,
+  };
 
   factory DownloadItem.fromMap(Map<String, dynamic> map) => DownloadItem(
-        animeId: map['animeId'] ?? '',
-        animeSlug: map['animeSlug'] ?? '',
-        animeTitle: map['animeTitle'] ?? '',
-        animePoster: map['animePoster'] ?? '',
-        episodeNumber: (map['episodeNumber'] as num?)?.toInt() ?? 1,
-        episodeTitle: map['episodeTitle'] ?? '',
-        resolution: map['resolution'] ?? '720p',
-        sizeMb: (map['sizeMb'] as num?)?.toDouble() ?? 239.5,
-        timestamp: (map['timestamp'] as num?)?.toInt() ?? 0,
-      );
+    animeId: map['animeId'] ?? '',
+    animeSlug: map['animeSlug'] ?? '',
+    animeTitle: map['animeTitle'] ?? '',
+    animePoster: map['animePoster'] ?? '',
+    episodeNumber: (map['episodeNumber'] as num?)?.toInt() ?? 1,
+    episodeTitle: map['episodeTitle'] ?? '',
+    resolution: map['resolution'] ?? '720p',
+    sizeMb: (map['sizeMb'] as num?)?.toDouble() ?? 239.5,
+    timestamp: (map['timestamp'] as num?)?.toInt() ?? 0,
+  );
 
   String toJson() => json.encode(toMap());
 
@@ -356,3 +385,55 @@ class DownloadItem {
       DownloadItem.fromMap(json.decode(source));
 }
 
+/// Structured recommendation result separating direct franchise/style similarity
+/// and curated genre/theme recommendations.
+class AnimeRecommendations {
+  final List<AnimeItem> moreLikeThis;
+  final List<AnimeItem> recommendations;
+
+  const AnimeRecommendations({
+    this.moreLikeThis = const [],
+    this.recommendations = const [],
+  });
+}
+
+class SeasonItem {
+  final String id;
+  final String slug;
+  final String title;
+  final String seasonName;
+  final String posterUrl;
+  final bool isCurrent;
+
+  const SeasonItem({
+    required this.id,
+    required this.slug,
+    required this.title,
+    required this.seasonName,
+    required this.posterUrl,
+    this.isCurrent = false,
+  });
+
+  AnimeItem toAnimeItem() {
+    return AnimeItem(
+      id: id,
+      slug: slug,
+      title: title,
+      posterUrl: posterUrl,
+    );
+  }
+}
+
+class HomePageSections {
+  final List<AnimeItem> latestEpisodes;
+  final List<AnimeItem> newOnHiAnime;
+  final List<AnimeItem> topUpcoming;
+  final List<AnimeItem> top10;
+
+  const HomePageSections({
+    this.latestEpisodes = const [],
+    this.newOnHiAnime = const [],
+    this.topUpcoming = const [],
+    this.top10 = const [],
+  });
+}

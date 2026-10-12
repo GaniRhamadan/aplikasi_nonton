@@ -86,7 +86,9 @@ class AnimeVerticalCard extends StatelessWidget {
     final history = StorageService.getHistoryForAnime(anime.id, anime.slug);
     final subText = history != null
         ? 'Sampai Ep. ${history.episodeNumber}'
-        : (topSubtitle ?? anime.displayGenre);
+        : (anime.isUpcoming
+            ? 'Akan Datang'
+            : (topSubtitle ?? anime.displayGenre));
 
     final content = InkWell(
         onTap: onTap ??
@@ -138,7 +140,7 @@ class AnimeVerticalCard extends StatelessWidget {
                           )
                         : _buildPlaceholder(),
 
-                    // Watched badge
+                    // Watched badge or Akan Datang badge
                     if (history != null)
                       Positioned(
                         top: 6,
@@ -165,6 +167,43 @@ class AnimeVerticalCard extends StatelessWidget {
                               Text(
                                 'Ep. ${history.episodeNumber}',
                                 style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else if (anime.isUpcoming ||
+                        anime.statusBadge == 'Akan Datang' ||
+                        anime.statusBadge == 'Segera')
+                      Positioned(
+                        top: 6,
+                        left: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2.5),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade900.withValues(alpha: 0.9),
+                            borderRadius: BorderRadius.circular(4),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.5),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.schedule_rounded,
+                                  size: 10, color: Colors.white),
+                              SizedBox(width: 3),
+                              Text(
+                                'Akan Datang',
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 9.5,
                                   fontWeight: FontWeight.w800,

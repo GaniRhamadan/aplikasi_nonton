@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,9 @@ import '../models/anime_models.dart';
 import '../services/anime_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/download_progress_dialog.dart';
+import '../widgets/player_episode_drawer.dart';
+import '../widgets/video_player_overlay.dart';
 
 class PlayerScreen extends StatefulWidget {
   final AnimeItem anime;
@@ -43,12 +47,38 @@ class _PlayerScreenState extends State<PlayerScreen> {
   StreamServerItem? _selectedServer;
   String? _directM3u8Url;
 
+  // Custom Video Player Controls State
+  Duration _currentPosition = Duration.zero;
+  Duration _totalDuration = const Duration(minutes: 24, seconds: 20);
+  bool _isPlaying = true;
+  bool _isMuted = false;
+  bool _isLocked = false;
+  double _playbackSpeed = 1.0;
+  Timer? _sleepTimer;
+  bool _isEpisodeDrawerOpen = false;
+  bool _isControlsVisible = true;
+
+  // Skip Intro / Outro State
+  bool _isIntroActive = false;
+  double? _introStart;
+  double? _introEnd;
+  bool _isOutroActive = false;
+  double? _outroStart;
+  double? _outroEnd;
+  late bool _autoSkipIntro;
+
+  // Buffering & Network Lag Watchdog State
+  bool _isBuffering = false;
+  bool _isNetworkStalled = false;
+  int _stallSeconds = 0;
+
   @override
   void initState() {
     super.initState();
     _currentEpisode = widget.initialEpisode;
     _isDub = StorageService.isDub;
     _subIndoEnabled = StorageService.subLanguage == 'id';
+    _autoSkipIntro = StorageService.autoSkipIntro;
     _loadEpisodes();
     _loadStreamForEpisode(_currentEpisode);
   }
@@ -62,6 +92,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       DeviceOrientation.landscapeRight,
     ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    _sleepTimer?.cancel();
     super.dispose();
   }
 
@@ -94,6 +125,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _selectedServer = null;
       _directM3u8Url = null;
       _currentSubtitleText = '';
+      _isIntroActive = false;
+      _introStart = null;
+      _introEnd = null;
+      _isOutroActive = false;
+      _outroStart = null;
+      _outroEnd = null;
+      _isBuffering = false;
+      _isNetworkStalled = false;
+      _stallSeconds = 0;
     });
 
     final totalEps = widget.anime.totalEpisodes > 0
@@ -144,9 +184,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
         // Resolve direct master.m3u8 in the background for instant native MPV/VLC playback
         _resolveDirectStreamForExternalPlayer(servers);
       } else {
+        final isUpcoming = widget.anime.isUpcoming ||
+            _allEpisodes.isEmpty ||
+            (widget.anime.status?.toLowerCase().contains('not yet') == true);
         setState(() {
-          _errorMessage =
-              'Server video tidak merespons untuk Episode ${episode.number}. Anda dapat mencoba beralih ke ${_isDub ? "SUB" : "DUB"} atau membuka pemutar eksternal.';
+          if (isUpcoming) {
+            final rel = widget.anime.releaseDate != null
+                ? ' Dijadwalkan rilis: ${widget.anime.releaseDate}'
+                : '';
+            _errorMessage =
+                'Anime "${widget.anime.title}" belum resmi rilis di server streaming (Akan Datang).$rel';
+          } else {
+            _errorMessage =
+                'Server video tidak merespons untuk Episode ${episode.number}. Anda dapat mencoba beralih ke ${_isDub ? "SUB" : "DUB"} atau membuka pemutar eksternal.';
+          }
           _isLoadingStream = false;
         });
       }
@@ -226,6 +277,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
         if (!_subIndoEnabled) return;
 
+        // Strictly reject HLS stream metadata / ID3 / discontinuity cues
+        if (!_isValidSubtitleCue(clean)) {
+          if (mounted &&
+              _currentSubtitleText.isNotEmpty &&
+              !_isValidSubtitleCue(_currentSubtitleText)) {
+            setState(() {
+              _currentSubtitleText = '';
+            });
+          }
+          return;
+        }
+
         // If translation is already cached, show it instantly
         if (_translationCache.containsKey(clean)) {
           if (mounted) {
@@ -236,25 +299,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
           return;
         }
 
-        // Show original text immediately while translating so there is zero delay
-        if (mounted) {
-          setState(() {
-            _currentSubtitleText = clean;
-          });
-        }
-
         final translated = await _translateText(clean);
-        if (mounted && _subIndoEnabled) {
+        if (mounted && _subIndoEnabled && _isValidSubtitleCue(translated)) {
           setState(() {
             _currentSubtitleText = translated;
           });
         }
-
-        final safeOrig = jsonEncode(clean);
-        final safeTrans = jsonEncode(translated);
-        _webViewController?.runJavaScript(
-          'window.__onIndoTranslationReady && window.__onIndoTranslationReady($safeOrig, $safeTrans);',
-        );
       } else if (action == 'clear') {
         if (mounted && _currentSubtitleText.isNotEmpty) {
           setState(() {
@@ -263,6 +313,625 @@ class _PlayerScreenState extends State<PlayerScreen> {
         }
       }
     } catch (_) {}
+  }
+
+  bool _isValidSubtitleCue(String text) {
+    final clean = text.trim();
+    if (clean.isEmpty) return false;
+    if (clean.startsWith('{') ||
+        clean.startsWith('[') ||
+        clean.endsWith('}') ||
+        clean.endsWith(']')) {
+      return false;
+    }
+    final lower = clean.toLowerCase();
+    if (lower.contains('metadatatype') ||
+        lower.contains('discontinuity') ||
+        lower.contains('diskontinuitas') ||
+        lower.contains('pts') ||
+        lower.contains('#ext') ||
+        lower.contains('segment') ||
+        lower.contains('sequence')) {
+      return false;
+    }
+    return true;
+  }
+
+  bool get _showSkipIntroButton {
+    if (_introStart != null && _introEnd != null && _introEnd! > _introStart!) {
+      final cur = _currentPosition.inSeconds.toDouble();
+      if (cur >= _introStart! && cur < _introEnd!) {
+        return true;
+      }
+    }
+    return _isIntroActive;
+  }
+
+  bool get _showSkipOutroButton {
+    if (_outroStart != null && _outroEnd != null && _outroEnd! > _outroStart!) {
+      final cur = _currentPosition.inSeconds.toDouble();
+      if (cur >= _outroStart! && cur < _outroEnd!) {
+        return true;
+      }
+    }
+    return _isOutroActive;
+  }
+
+  void _skipIntro() {
+    final target = _introEnd ?? (_currentPosition.inSeconds + 85).toDouble();
+    setState(() {
+      _isIntroActive = false;
+      _introStart = null;
+      _currentPosition = Duration(seconds: target.toInt());
+    });
+    _webViewController?.runJavaScript(
+      'window.__skipIntro && window.__skipIntro($target);',
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).removeCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.fast_forward_rounded, color: AppColors.accent, size: 20),
+              SizedBox(width: 10),
+              Text(
+                'Intro berhasil dilewati',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          duration: Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _retryPlayback() {
+    setState(() {
+      _isBuffering = true;
+      _isNetworkStalled = false;
+    });
+    final pos = _currentPosition.inSeconds;
+    _webViewController?.runJavaScript(
+      '''(function() {
+        try {
+          var v = document.querySelector('video');
+          if (v) {
+            v.currentTime = $pos;
+            v.play();
+          }
+          if (typeof window.jwplayer === 'function') {
+            var jw = window.jwplayer('megaplay-player') || window.jwplayer();
+            jw.seek($pos);
+            jw.play(true);
+          }
+        } catch(e) {}
+      })();''',
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).removeCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.refresh, color: AppColors.accent, size: 20),
+              SizedBox(width: 10),
+              Text('Menyambung kembali pemutaran video...'),
+            ],
+          ),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _switchServerQuickly() {
+    if (_availableServers.length <= 1) {
+      _loadStreamForEpisode(_currentEpisode);
+      return;
+    }
+    final currentIdx = _availableServers.indexWhere(
+      (s) => s.embedUrl == _selectedServer?.embedUrl,
+    );
+    final nextIdx = (currentIdx + 1) % _availableServers.length;
+    final nextServer = _availableServers[nextIdx];
+    _switchServer(nextServer);
+  }
+
+  void _skipOutro() {
+    final target = _outroEnd;
+    setState(() {
+      _isOutroActive = false;
+      _outroStart = null;
+    });
+    _webViewController?.runJavaScript(
+      'window.__skipOutro && window.__skipOutro($target);',
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).removeCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.skip_next_rounded, color: AppColors.accent, size: 20),
+              SizedBox(width: 10),
+              Text(
+                'Ending berhasil dilewati',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          duration: Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _handlePlayerChannelMessage(String raw) {
+    try {
+      final data = json.decode(raw);
+      if (data is Map && data['action'] == 'state') {
+        final currentSecs = (data['currentTime'] as num?)?.toDouble() ?? 0.0;
+        final durSecs = (data['duration'] as num?)?.toDouble() ?? 1460.0;
+        final paused = data['paused'] as bool? ?? false;
+        final muted = data['muted'] as bool? ?? false;
+        final rate = (data['playbackRate'] as num?)?.toDouble() ?? 1.0;
+        final isIntro = data['isIntro'] as bool? ?? false;
+        final introStart = (data['introStart'] as num?)?.toDouble();
+        final introEnd = (data['introEnd'] as num?)?.toDouble();
+        final isOutro = data['isOutro'] as bool? ?? false;
+        final outroStart = (data['outroStart'] as num?)?.toDouble();
+        final outroEnd = (data['outroEnd'] as num?)?.toDouble();
+        final isBuffering = data['isBuffering'] as bool? ?? false;
+        final isNetworkStalled = data['isNetworkStalled'] as bool? ?? false;
+        final stallSecs = (data['stallSeconds'] as num?)?.toInt() ?? 0;
+
+        if (mounted) {
+          setState(() {
+            _currentPosition = Duration(seconds: currentSecs.toInt());
+            if (durSecs > 10) {
+              _totalDuration = Duration(seconds: durSecs.toInt());
+            }
+            _isPlaying = !paused;
+            _isMuted = muted;
+            _playbackSpeed = rate;
+            if (introStart != null && introStart > 0) _introStart = introStart;
+            if (introEnd != null && introEnd > 0) _introEnd = introEnd;
+            if (outroStart != null && outroStart > 0) _outroStart = outroStart;
+            if (outroEnd != null && outroEnd > 0) _outroEnd = outroEnd;
+            _isIntroActive = isIntro;
+            _isOutroActive = isOutro;
+            _isBuffering = isBuffering;
+            _isNetworkStalled = isNetworkStalled;
+            _stallSeconds = stallSecs;
+          });
+
+          if (_autoSkipIntro &&
+              isIntro &&
+              introEnd != null &&
+              introEnd > currentSecs) {
+            _skipIntro();
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _injectPlayerControlScript() {
+    const script = '''
+      (function() {
+        if (!window.__xhrHooked) {
+          window.__xhrHooked = true;
+          var origOpen = XMLHttpRequest.prototype.open;
+          var origSend = XMLHttpRequest.prototype.send;
+          XMLHttpRequest.prototype.open = function(method, url) {
+            this.__reqUrl = String(url || '');
+            return origOpen.apply(this, arguments);
+          };
+          XMLHttpRequest.prototype.send = function() {
+            var self = this;
+            if (this.__reqUrl && /getSources|sources/i.test(this.__reqUrl)) {
+              this.addEventListener('load', function() {
+                try {
+                  var data = JSON.parse(self.responseText);
+                  if (data) {
+                    if (data.intro) {
+                      var s = Number(data.intro[0] != null ? data.intro[0] : data.intro.start);
+                      var e = Number(data.intro[1] != null ? data.intro[1] : data.intro.end);
+                      if (!isNaN(s) && !isNaN(e) && e > s) {
+                        window.__introData = [s, e];
+                      }
+                    }
+                    if (data.outro) {
+                      var os = Number(data.outro[0] != null ? data.outro[0] : data.outro.start);
+                      var oe = Number(data.outro[1] != null ? data.outro[1] : data.outro.end);
+                      if (!isNaN(os) && !isNaN(oe) && oe > os) {
+                        window.__outroData = [os, oe];
+                      }
+                    }
+                  }
+                } catch(e) {}
+              });
+            }
+            return origSend.apply(this, arguments);
+          };
+        }
+
+        function checkIntroStatus(curTime) {
+          try {
+            var intro = null;
+            if (window.__handleBridgeState && window.__handleBridgeState.intro) {
+              intro = window.__handleBridgeState.intro;
+            } else if (window.__introData) {
+              intro = window.__introData;
+            }
+            var domBtn = document.getElementById('skip-intro-handle') ||
+                         document.querySelector('.skip-intro, .skip-op, #skip-op, .jw-skip');
+            var isDomActive = (domBtn && domBtn.offsetParent !== null && domBtn.style.display !== 'none');
+
+            var isIntro = false;
+            var introStart = 0;
+            var introEnd = 0;
+            if (intro && intro.length >= 2) {
+              introStart = Number(intro[0]);
+              introEnd = Number(intro[1]);
+              if (curTime >= introStart && curTime < introEnd) {
+                isIntro = true;
+              }
+            } else if (isDomActive) {
+              isIntro = true;
+              introEnd = curTime + 85;
+            }
+
+            var outro = null;
+            if (window.__handleBridgeState && window.__handleBridgeState.outro) {
+              outro = window.__handleBridgeState.outro;
+            } else if (window.__outroData) {
+              outro = window.__outroData;
+            }
+            var isOutro = false;
+            var outroStart = 0;
+            var outroEnd = 0;
+            if (outro && outro.length >= 2) {
+              outroStart = Number(outro[0]);
+              outroEnd = Number(outro[1]);
+              if (curTime >= outroStart && curTime < outroEnd) {
+                isOutro = true;
+              }
+            }
+
+            return {
+              isIntro: isIntro,
+              introStart: introStart,
+              introEnd: introEnd,
+              isOutro: isOutro,
+              outroStart: outroStart,
+              outroEnd: outroEnd
+            };
+          } catch(e) {
+            return { isIntro: false, introStart: 0, introEnd: 0, isOutro: false, outroStart: 0, outroEnd: 0 };
+          }
+        }
+
+        var isWaiting = false;
+        var lastReportedTime = -1;
+        var stallTicks = 0;
+        var recoveryAttempts = 0;
+
+        function hookVideo() {
+          var v = document.querySelector('video');
+          if (!v) return;
+          if (v.__hookedByFlutter) return;
+          v.__hookedByFlutter = true;
+
+          function onWaiting() {
+            isWaiting = true;
+            postState();
+          }
+
+          function onPlaying() {
+            isWaiting = false;
+            stallTicks = 0;
+            recoveryAttempts = 0;
+            postState();
+          }
+
+          function onCanPlay() {
+            isWaiting = false;
+            postState();
+          }
+
+          function onStalled() {
+            isWaiting = true;
+            postState();
+          }
+
+          v.addEventListener('waiting', onWaiting);
+          v.addEventListener('stalled', onStalled);
+          v.addEventListener('playing', onPlaying);
+          v.addEventListener('canplay', onCanPlay);
+
+          function postState() {
+            try {
+              if (window.FlutterPlayerChannel) {
+                var cur = v.currentTime || 0;
+                var introInfo = checkIntroStatus(cur);
+                var isBuffering = false;
+                var isNetworkStalled = false;
+
+                if (!v.paused) {
+                  if (v.readyState < 3 || isWaiting) {
+                    isBuffering = true;
+                  }
+                  if (cur === lastReportedTime && cur > 0) {
+                    stallTicks++;
+                    if (stallTicks >= 2) {
+                      isBuffering = true;
+                    }
+                    if (stallTicks >= 6) {
+                      try { v.play(); } catch(e) {}
+                      if (typeof window.jwplayer === 'function') {
+                        try { window.jwplayer().play(true); } catch(e) {}
+                      }
+                    }
+                    if (stallTicks >= 10) {
+                      isNetworkStalled = true;
+                      if (recoveryAttempts < 2) {
+                        recoveryAttempts++;
+                        try {
+                          v.currentTime = cur + 0.1;
+                          v.play();
+                        } catch(e) {}
+                      }
+                    }
+                  } else {
+                    lastReportedTime = cur;
+                    stallTicks = 0;
+                    recoveryAttempts = 0;
+                  }
+                } else {
+                  stallTicks = 0;
+                }
+
+                window.FlutterPlayerChannel.postMessage(JSON.stringify({
+                  action: 'state',
+                  currentTime: cur,
+                  duration: v.duration && !isNaN(v.duration) ? v.duration : 1460,
+                  paused: v.paused,
+                  muted: v.muted,
+                  playbackRate: v.playbackRate || 1.0,
+                  isBuffering: isBuffering,
+                  isNetworkStalled: isNetworkStalled,
+                  stallSeconds: Math.floor(stallTicks * 0.5),
+                  isIntro: introInfo.isIntro,
+                  introStart: introInfo.introStart,
+                  introEnd: introInfo.introEnd,
+                  isOutro: introInfo.isOutro,
+                  outroStart: introInfo.outroStart,
+                  outroEnd: introInfo.outroEnd
+                }));
+              }
+            } catch(e) {}
+          }
+
+          v.addEventListener('timeupdate', postState);
+          v.addEventListener('play', postState);
+          v.addEventListener('pause', postState);
+          v.addEventListener('volumechange', postState);
+          v.addEventListener('ratechange', postState);
+          v.addEventListener('loadedmetadata', postState);
+          postState();
+        }
+
+        window.__togglePlay = function() {
+          if (typeof window.jwplayer === 'function') {
+            try {
+              var jw = window.jwplayer('megaplay-player') || window.jwplayer('player') || window.jwplayer();
+              if (jw && typeof jw.getState === 'function') {
+                var s = jw.getState();
+                if (s === 'playing') {
+                  jw.pause();
+                } else {
+                  jw.play();
+                }
+                return;
+              }
+            } catch(e) {}
+          }
+          var v = document.querySelector('video');
+          if (v) {
+            if (v.paused) {
+              var p = v.play();
+              if (p && p.catch) {
+                p.catch(function() {
+                  v.muted = true;
+                  v.play();
+                });
+              }
+            } else {
+              v.pause();
+            }
+          }
+        };
+
+        window.__seekVideo = function(seconds) {
+          if (typeof window.jwplayer === 'function') {
+            try {
+              var jw = window.jwplayer('megaplay-player') || window.jwplayer('player') || window.jwplayer();
+              if (jw && typeof jw.seek === 'function') {
+                jw.seek(seconds);
+              }
+            } catch(e) {}
+          }
+          var v = document.querySelector('video');
+          if (v) {
+            try { v.currentTime = seconds; } catch(e) {}
+          }
+        };
+
+        window.__seekRelative = function(delta) {
+          if (typeof window.jwplayer === 'function') {
+            try {
+              var jw = window.jwplayer('megaplay-player') || window.jwplayer('player') || window.jwplayer();
+              if (jw && typeof jw.getPosition === 'function' && typeof jw.seek === 'function') {
+                var curPos = jw.getPosition() || 0;
+                jw.seek(Math.max(0, curPos + delta));
+                return;
+              }
+            } catch(e) {}
+          }
+          var v = document.querySelector('video');
+          if (v) {
+            var target = Math.max(0, (v.currentTime || 0) + delta);
+            v.currentTime = target;
+          }
+        };
+
+        window.__skipIntro = function(targetEnd) {
+          try {
+            var end = targetEnd;
+            if (!end || isNaN(end) || end <= 0) {
+              if (window.__handleBridgeState && window.__handleBridgeState.intro) {
+                end = Number(window.__handleBridgeState.intro[1]);
+              } else if (window.__introData) {
+                end = Number(window.__introData[1]);
+              }
+            }
+            var domBtn = document.getElementById('skip-intro-handle') ||
+                         document.querySelector('.skip-intro, .skip-op, #skip-op, .jw-skip');
+            if (domBtn) {
+              try { domBtn.click(); } catch(e) {}
+            }
+            var v = document.querySelector('video');
+            if (end && end > 0) {
+              if (v) v.currentTime = end;
+              if (typeof window.jwplayer === 'function') {
+                try {
+                  var jw = window.jwplayer('megaplay-player') || window.jwplayer();
+                  if (jw && typeof jw.seek === 'function') jw.seek(end);
+                } catch(e) {}
+              }
+            } else if (v) {
+              v.currentTime = (v.currentTime || 0) + 85;
+            }
+          } catch(e) {}
+        };
+
+        window.__skipOutro = function(targetEnd) {
+          try {
+            var end = targetEnd;
+            if (!end || isNaN(end) || end <= 0) {
+              if (window.__handleBridgeState && window.__handleBridgeState.outro) {
+                end = Number(window.__handleBridgeState.outro[1]);
+              } else if (window.__outroData) {
+                end = Number(window.__outroData[1]);
+              }
+            }
+            var domBtn = document.getElementById('skip-outro-handle') ||
+                         document.querySelector('.skip-outro, .skip-ed, #skip-ed');
+            if (domBtn) {
+              try { domBtn.click(); } catch(e) {}
+            }
+            var v = document.querySelector('video');
+            if (end && end > 0) {
+              if (v) v.currentTime = end;
+              if (typeof window.jwplayer === 'function') {
+                try {
+                  var jw = window.jwplayer('megaplay-player') || window.jwplayer();
+                  if (jw && typeof jw.seek === 'function') jw.seek(end);
+                } catch(e) {}
+              }
+            } else if (v) {
+              v.currentTime = (v.duration || (v.currentTime + 90));
+            }
+          } catch(e) {}
+        };
+
+        window.__setSpeed = function(rate) {
+          var v = document.querySelector('video');
+          if (v) v.playbackRate = rate;
+        };
+
+        window.__toggleMute = function() {
+          var v = document.querySelector('video');
+          if (v) v.muted = !v.muted;
+        };
+
+        function disableWebControls() {
+          try {
+            if (typeof window.jwplayer === 'function') {
+              var jw = window.jwplayer('megaplay-player') || window.jwplayer('player') || window.jwplayer();
+              if (jw && typeof jw.setControls === 'function') {
+                jw.setControls(false);
+              }
+            }
+          } catch(e) {}
+          try {
+            var vids = document.querySelectorAll('video');
+            for (var i = 0; i < vids.length; i++) {
+              vids[i].controls = false;
+            }
+          } catch(e) {}
+          var hideCss = '.jw-controls, .jw-controls-backdrop, .jw-controlbar, .jw-display, .jw-display-controls, .jw-display-icon-container, .jw-display-icon-display, .jw-display-icon-rewind, .jw-display-icon-next, .jw-dock, .jw-dock-btn, .jw-title, .jw-title-primary, .jw-title-secondary, .jw-top, .jw-overlays, .jw-preview, .jwplayer .jw-controls, .jwplayer .jw-display, .jwplayer .jw-display-controls, .jwplayer .jw-display-icon-container, .jwplayer .jw-display-icon-display, .jwplayer .jw-display-icon-rewind, .jwplayer .osp-display-forward, .jwplayer[class*="centre-controls"] .jw-display, .jwplayer[class*="centre-controls"] .jw-display-icon-rewind, .jwplayer[class*="centre-controls"] .osp-display-forward, .jwplayer.osp-centre-controls .jw-display, .jwplayer.osp-centre-controls .jw-display-icon-rewind, .jwplayer.osp-centre-controls .osp-display-forward, .osp-centre-controls, .osp-display-forward, .osp-brand, .osp-skip, .osp-unmute, .osp-dl, .osp-qmenu, .float-pill, .card-top, .vjs-control-bar, .vjs-big-play-button, .vjs-modal-dialog, .vjs-dock-text, .vjs-dock-title, .art-controls, .art-bottom, .art-top, .art-state, .art-mask, .art-video-player .art-state, .art-video-player .art-controls, .art-video-player .art-top, .art-video-player .art-bottom, .plyr__controls, .plyr__control--overlaid, media-controls, media-video-layout, #overlay-control-handle, #skip-intro-handle, #skip-outro-handle, .skip-intro, .skip-op, .botright { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; width: 0 !important; height: 0 !important; max-width: 0 !important; max-height: 0 !important; line-height: 0 !important; font-size: 0 !important; overflow: hidden !important; } video::-webkit-media-controls, video::-webkit-media-controls-enclosure, video::-webkit-media-controls-panel, video::-webkit-media-controls-play-button, video::-webkit-media-controls-timeline { display: none !important; }';
+          try {
+            var hideStyle = document.getElementById('web-player-hide-controls-style');
+            if (!hideStyle) {
+              hideStyle = document.createElement('style');
+              hideStyle.id = 'web-player-hide-controls-style';
+              document.head.appendChild(hideStyle);
+            }
+            hideStyle.innerHTML = hideCss;
+          } catch(e) {}
+          try {
+            var controlEls = document.querySelectorAll('.jw-controls, .jw-controlbar, .jw-display, .jw-display-controls, .jw-display-icon-container, .jw-display-icon-display, .jw-display-icon-rewind, .osp-display-forward, .osp-centre-controls, .jw-dock, .jw-title, .osp-brand, .osp-unmute, .float-pill, .art-state, .art-controls, .art-top, .art-bottom, .vjs-big-play-button, .vjs-control-bar');
+            for (var c = 0; c < controlEls.length; c++) {
+              controlEls[c].style.setProperty('display', 'none', 'important');
+              controlEls[c].style.setProperty('opacity', '0', 'important');
+              controlEls[c].style.setProperty('visibility', 'hidden', 'important');
+              controlEls[c].style.setProperty('pointer-events', 'none', 'important');
+            }
+          } catch(e) {}
+          try {
+            var iframes = document.querySelectorAll('iframe');
+            for (var f = 0; f < iframes.length; f++) {
+              try {
+                var idoc = iframes[f].contentDocument || iframes[f].contentWindow.document;
+                if (idoc) {
+                  var istyle = idoc.getElementById('iframe-hide-controls-style');
+                  if (!istyle) {
+                    istyle = idoc.createElement('style');
+                    istyle.id = 'iframe-hide-controls-style';
+                    idoc.head.appendChild(istyle);
+                  }
+                  istyle.innerHTML = hideCss;
+                  var icontrolEls = idoc.querySelectorAll('.jw-controls, .jw-controlbar, .jw-display, .jw-display-controls, .jw-display-icon-container, .jw-display-icon-display, .jw-display-icon-rewind, .osp-display-forward, .osp-centre-controls, .jw-dock, .jw-title, .osp-brand, .osp-unmute, .float-pill, .art-state, .art-controls, .art-top, .art-bottom, .vjs-big-play-button, .vjs-control-bar');
+                  for (var ic = 0; ic < icontrolEls.length; ic++) {
+                    icontrolEls[ic].style.setProperty('display', 'none', 'important');
+                    icontrolEls[ic].style.setProperty('opacity', '0', 'important');
+                    icontrolEls[ic].style.setProperty('visibility', 'hidden', 'important');
+                    icontrolEls[ic].style.setProperty('pointer-events', 'none', 'important');
+                  }
+                }
+              } catch(e) {}
+            }
+          } catch(e) {}
+        }
+
+        hookVideo();
+        disableWebControls();
+        if (!window.__videoHookInterval) {
+          window.__videoHookInterval = setInterval(function() {
+            hookVideo();
+            disableWebControls();
+          }, 1000);
+        }
+      })();
+    ''';
+    _webViewController?.runJavaScript(script);
   }
 
   Future<String> _translateText(String text) async {
@@ -305,7 +974,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           window.__subIndoEnabled = $_subIndoEnabled;
           window.__subCache = window.__subCache || {};
 
-          // 1. Hide default English cues only when Subtitle Indonesia is active
+          // 1. Hide all native and web player English cues completely
           var hideStyle = document.getElementById('sub-hide-cues-style');
           if (!hideStyle) {
             hideStyle = document.createElement('style');
@@ -313,54 +982,42 @@ class _PlayerScreenState extends State<PlayerScreen> {
             document.head.appendChild(hideStyle);
           }
           if (window.__subIndoEnabled) {
-            hideStyle.innerHTML = 'video::cue { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; line-height: 0 !important; height: 0 !important; } .jw-text-track-cue { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; line-height: 0 !important; height: 0 !important; } .jw-captions-text { opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; } div[class*="text-track-cue"] { opacity: 0 !important; visibility: hidden !important; } .jw-text-track-display { pointer-events: none !important; }';
+            hideStyle.innerHTML = [
+              'video::cue, ::cue, ::cue-region { color: transparent !important; background: transparent !important; background-color: transparent !important; text-shadow: none !important; font-size: 0.01px !important; line-height: 0.01px !important; height: 0 !important; width: 0 !important; opacity: 0 !important; visibility: hidden !important; }',
+              '.jw-text-track-cue, .jw-captions-text, .jw-text-track-display, .art-subtitle, .art-subtitle-item, .art-subtitles, .vjs-text-track-cue, .vjs-text-track-display, div[class*="text-track-cue"], div[class*="caption-window"], #sub-id-overlay { display: none !important; opacity: 0 !important; visibility: hidden !important; color: transparent !important; background: transparent !important; font-size: 0px !important; pointer-events: none !important; }',
+              '.jw-controlbar, .jw-dock, .jw-title, .vjs-control-bar, .art-bottom, .plyr__controls { display: none !important; opacity: 0 !important; pointer-events: none !important; }',
+              'video::-webkit-media-controls, video::-webkit-media-controls-enclosure, video::-webkit-media-controls-panel { display: none !important; }'
+            ].join(' ');
           } else {
             hideStyle.innerHTML = '';
           }
 
-          // 2. Setup Subtitle Overlay inside Player container as web backup
-          var playerContainer = document.getElementById('megaplay-player') ||
-                                document.querySelector('.mg3-player') ||
-                                document.querySelector('.fix-area') ||
-                                document.querySelector('#player') ||
-                                document.body;
-
-          var overlay = document.getElementById('sub-id-overlay');
-          if (!overlay) {
-            overlay = document.createElement('div');
-            overlay.id = 'sub-id-overlay';
-            overlay.style.cssText = 'position:fixed;bottom:12%;left:50%;transform:translateX(-50%);background:transparent !important;color:#FFFFFF;padding:4px 12px;border:none !important;box-shadow:none !important;font-size:16.5px;font-weight:700;text-align:center;max-width:92%;z-index:2147483647;pointer-events:none;display:none;line-height:1.25;font-family:system-ui,-apple-system,sans-serif;text-shadow:-1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000, 0 2px 4px rgba(0,0,0,0.95);';
-            playerContainer.appendChild(overlay);
-          } else if (overlay.parentElement !== playerContainer) {
-            playerContainer.appendChild(overlay);
+          // 2. Remove legacy DOM overlay if present (Flutter is the sole renderer)
+          var oldOverlay = document.getElementById('sub-id-overlay');
+          if (oldOverlay) {
+            oldOverlay.remove();
           }
 
-          if (!window.__subIndoEnabled) {
-            overlay.style.display = 'none';
+          function isValidSubtitleCue(t) {
+            if (!t || typeof t !== 'string') return false;
+            var s = t.trim();
+            if (s.length === 0) return false;
+            if (s.charAt(0) === '{' || s.charAt(0) === '[' || s.charAt(s.length - 1) === '}' || s.charAt(s.length - 1) === ']') return false;
+            var lower = s.toLowerCase();
+            if (lower.indexOf('metadatatype') !== -1 ||
+                lower.indexOf('discontinuity') !== -1 ||
+                lower.indexOf('diskontinuitas') !== -1 ||
+                lower.indexOf('pts') !== -1 ||
+                lower.indexOf('#ext') !== -1 ||
+                lower.indexOf('segment') !== -1 ||
+                lower.indexOf('sequence') !== -1) {
+              return false;
+            }
+            return true;
           }
-
-          function renderIndonesianSubtitle(text) {
-            if (!window.__subIndoEnabled || !text || text.trim() === '') {
-              if (overlay) overlay.style.display = 'none';
-              return;
-            }
-            if (overlay) {
-              overlay.innerText = text;
-              overlay.style.display = 'block';
-            }
-          }
-
-          // Callback when Flutter finishes native HTTP translation
-          window.__onIndoTranslationReady = function(orig, trans) {
-            window.__subCache[orig] = trans;
-            if (window.__subIndoEnabled && (window.__currentCue === orig || !window.__currentCue)) {
-              renderIndonesianSubtitle(trans);
-            }
-          };
 
           function handleEngCue(text) {
             if (!text || text.trim() === '') {
-              renderIndonesianSubtitle('');
               try {
                 if (window.FlutterSubChannel) {
                   window.FlutterSubChannel.postMessage(JSON.stringify({action: 'clear'}));
@@ -369,8 +1026,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
               return;
             }
             text = text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/\\s+/g, ' ').trim();
-            if (text === '') {
-              renderIndonesianSubtitle('');
+            if (text === '' || !isValidSubtitleCue(text)) {
               try {
                 if (window.FlutterSubChannel) {
                   window.FlutterSubChannel.postMessage(JSON.stringify({action: 'clear'}));
@@ -381,7 +1037,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
             window.__currentCue = text;
 
-            // Notify Flutter immediately so native overlay shows text / cache instantly
+            // Transmit cue to Flutter Native Overlay
             try {
               if (window.FlutterSubChannel) {
                 window.FlutterSubChannel.postMessage(JSON.stringify({
@@ -389,28 +1045,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   text: text
                 }));
               }
-            } catch(e) {}
-
-            if (window.__subCache[text]) {
-              renderIndonesianSubtitle(window.__subCache[text]);
-              return;
-            }
-
-            // Immediately display english text temporarily on DOM overlay while translating
-            renderIndonesianSubtitle(text);
-
-            // In-browser fallback translation
-            try {
-              fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=id&dt=t&q=' + encodeURIComponent(text))
-                .then(function(r){ return r.json(); })
-                .then(function(d){
-                  if (d && d[0]) {
-                    var trans = d[0].map(function(x){ return x[0]; }).join('');
-                    if (trans && window.__subIndoEnabled) {
-                      window.__onIndoTranslationReady(text, trans);
-                    }
-                  }
-                }).catch(function(){});
             } catch(e) {}
           }
 
@@ -470,6 +1104,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 if (vid.textTracks && vid.textTracks.length > 0) {
                   for (var t = 0; t < vid.textTracks.length; t++) {
                     var tr = vid.textTracks[t];
+                    if (tr.kind === 'metadata' || tr.kind === 'chapters') continue;
                     var trLang = ((tr.label || '') + ' ' + (tr.language || '')).toLowerCase();
                     if (tr.kind === 'captions' || tr.kind === 'subtitles' || trLang.indexOf('en') !== -1) {
                       if (tr.mode === 'disabled') {
@@ -556,21 +1191,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
             if (cueEls.length > 0) {
               for (var c = 0; c < cueEls.length; c++) {
                 var t = (cueEls[c].innerText || cueEls[c].textContent || '').trim();
-                if (t) domCue += t + ' ';
+                if (isValidSubtitleCue(t)) domCue += t + ' ';
               }
               domCue = domCue.trim();
             }
 
-            // Source 2: HTML5 textTracks active cues
+            // Source 2: HTML5 textTracks active cues (Strictly ignore metadata)
             var videoCue = '';
             var video = document.querySelector('video');
             if (video && video.textTracks) {
               for (var i = 0; i < video.textTracks.length; i++) {
                 var tr = video.textTracks[i];
+                if (tr.kind === 'metadata' || tr.kind === 'chapters') continue;
+                if (tr.kind !== 'captions' && tr.kind !== 'subtitles') continue;
                 if (tr.activeCues && tr.activeCues.length > 0) {
                   for (var j = 0; j < tr.activeCues.length; j++) {
-                    var ct = tr.activeCues[j].text || '';
-                    if (ct) videoCue += ct + ' ';
+                    var ct = (tr.activeCues[j].text || '').trim();
+                    if (isValidSubtitleCue(ct)) videoCue += ct + ' ';
                   }
                 }
               }
@@ -584,14 +1221,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
               for (var k = 0; k < window.__parsedVttCues.length; k++) {
                 var vc = window.__parsedVttCues[k];
                 if (curTime >= vc.start && curTime <= vc.end) {
-                  vttCue = vc.text;
-                  break;
+                  var vt = (vc.text || '').trim();
+                  if (isValidSubtitleCue(vt)) {
+                    vttCue = vt;
+                    break;
+                  }
                 }
               }
             }
 
             var chosen = domCue || videoCue || vttCue;
-            if (chosen && chosen.length > 0) {
+            if (chosen && chosen.length > 0 && isValidSubtitleCue(chosen)) {
               if (chosen !== window.__lastObservedCue) {
                 window.__lastObservedCue = chosen;
                 handleEngCue(chosen);
@@ -603,7 +1243,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
             if (window.__lastObservedCue !== '') {
               window.__lastObservedCue = '';
               window.__currentCue = '';
-              renderIndonesianSubtitle('');
               try {
                 if (window.FlutterSubChannel) {
                   window.FlutterSubChannel.postMessage(JSON.stringify({action: 'clear'}));
@@ -772,6 +1411,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
           _handleSubChannelMessage(msg.message);
         },
       )
+      ..addJavaScriptChannel(
+        'FlutterPlayerChannel',
+        onMessageReceived: (JavaScriptMessage msg) {
+          _handlePlayerChannelMessage(msg.message);
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onNavigationRequest: (NavigationRequest request) {
@@ -822,21 +1467,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
             }
             return NavigationDecision.navigate;
           },
+          onWebResourceError: (error) {
+            debugPrint('WebView Resource Error: ${error.errorCode} - ${error.description}');
+          },
           onPageFinished: (finishedUrl) {
             _webViewController?.runJavaScript('''
               try {
                 window.open = function() { return null; };
                 window.openPopup = function() { return null; };
-                var adStyle = document.getElementById('ad-shield-style');
-                if (!adStyle) {
-                  adStyle = document.createElement('style');
-                  adStyle.id = 'ad-shield-style';
-                  adStyle.innerHTML = 'a[target="_blank"]:not([href*="hianime"]):not([href*="zoko"]) { display: none !important; pointer-events: none !important; } iframe:not([src*="megaplay"]):not([src*="megacloud"]):not([src*="zokoanime"]):not([src*="vidstream"]):not([id*="player"]) { display: none !important; pointer-events: none !important; } .adsbox, div[class*="banner"], div[id*="banner"] { display: none !important; }';
-                  document.head.appendChild(adStyle);
-                }
-
-                var el = document.getElementById('megaplay-player') ||
-                         document.querySelector('#player');
+                // MegaCloud / Vidstream player sizing
+                var el = document.getElementById('megaplay-player');
                 if (el) {
                   el.style.width = '100vw';
                   el.style.height = '100vh';
@@ -845,14 +1485,66 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   el.style.left = '0';
                   el.style.zIndex = '999999';
                 }
+                // ZokoAnime / generic players sizing
+                var wrap = document.getElementById('wrap');
+                if (wrap) {
+                  wrap.style.width = '100vw';
+                  wrap.style.height = '100vh';
+                  wrap.style.position = 'fixed';
+                  wrap.style.top = '0';
+                  wrap.style.left = '0';
+                }
+                var stage = document.getElementById('stage');
+                if (stage) {
+                  stage.style.width = '100vw';
+                  stage.style.height = '100vh';
+                }
+                var pEl = document.getElementById('player');
+                if (pEl) {
+                  pEl.style.width = '100vw';
+                  pEl.style.height = '100vh';
+                }
+                var adbar = document.getElementById('adbar');
+                if (adbar) {
+                  adbar.style.display = 'none';
+                }
+                var ov = document.getElementById('ov');
+                if (ov && !ov.querySelector('.err')) {
+                  ov.style.display = 'none';
+                }
+                // Immediate hiding of web player display controls and title bars
+                var hideCss = '.jw-controls, .jw-controls-backdrop, .jw-controlbar, .jw-display, .jw-display-controls, .jw-display-icon-container, .jw-display-icon-display, .jw-display-icon-rewind, .jw-display-icon-next, .jw-dock, .jw-dock-btn, .jw-title, .jw-title-primary, .jw-title-secondary, .jw-top, .jw-overlays, .jw-preview, .jwplayer .jw-controls, .jwplayer .jw-display, .jwplayer .jw-display-controls, .jwplayer .jw-display-icon-container, .jwplayer .jw-display-icon-display, .jwplayer .jw-display-icon-rewind, .jwplayer .osp-display-forward, .jwplayer[class*="centre-controls"] .jw-display, .jwplayer[class*="centre-controls"] .jw-display-icon-rewind, .jwplayer[class*="centre-controls"] .osp-display-forward, .jwplayer.osp-centre-controls .jw-display, .jwplayer.osp-centre-controls .jw-display-icon-rewind, .jwplayer.osp-centre-controls .osp-display-forward, .osp-centre-controls, .osp-display-forward, .osp-brand, .osp-skip, .osp-unmute, .osp-dl, .osp-qmenu, .float-pill, .card-top, .vjs-control-bar, .vjs-big-play-button, .vjs-modal-dialog, .vjs-dock-text, .vjs-dock-title, .art-controls, .art-bottom, .art-top, .art-state, .art-mask, .art-video-player .art-state, .art-video-player .art-controls, .art-video-player .art-top, .art-video-player .art-bottom, .plyr__controls, .plyr__control--overlaid, media-controls, media-video-layout, #overlay-control-handle, #skip-intro-handle, #skip-outro-handle, .skip-intro, .skip-op, .botright { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; width: 0 !important; height: 0 !important; max-width: 0 !important; max-height: 0 !important; line-height: 0 !important; font-size: 0 !important; overflow: hidden !important; } video::-webkit-media-controls, video::-webkit-media-controls-enclosure, video::-webkit-media-controls-panel, video::-webkit-media-controls-play-button, video::-webkit-media-controls-timeline { display: none !important; }';
+                var hs = document.getElementById('web-player-hide-controls-style');
+                if (!hs) {
+                  hs = document.createElement('style');
+                  hs.id = 'web-player-hide-controls-style';
+                  document.head.appendChild(hs);
+                }
+                hs.innerHTML = hideCss;
+                // Initial autoplay trigger if player is ready
+                if (typeof window.jwplayer === 'function') {
+                  try {
+                    var jw = window.jwplayer();
+                    if (jw && typeof jw.play === 'function') {
+                      jw.play(true);
+                    }
+                  } catch(e) {}
+                }
               } catch(e) {}
             ''');
             _injectSubtitleTranslationScript();
+            _injectPlayerControlScript();
             Future.delayed(const Duration(milliseconds: 1500), () {
-              if (mounted) _injectSubtitleTranslationScript();
+              if (mounted) {
+                _injectSubtitleTranslationScript();
+                _injectPlayerControlScript();
+              }
             });
             Future.delayed(const Duration(milliseconds: 3000), () {
-              if (mounted) _injectSubtitleTranslationScript();
+              if (mounted) {
+                _injectSubtitleTranslationScript();
+                _injectPlayerControlScript();
+              }
             });
           },
         ),
@@ -872,6 +1564,538 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 
+  void _togglePlayPause() {
+    setState(() {
+      _isPlaying = !_isPlaying;
+    });
+    _webViewController?.runJavaScript(
+      'window.__togglePlay && window.__togglePlay();',
+    );
+  }
+
+  String _formatDuration(Duration d) {
+    if (d < Duration.zero) d = Duration.zero;
+    final totalSeconds = d.inSeconds;
+    final minutes = (totalSeconds ~/ 60).toString().padLeft(2, '0');
+    final seconds = (totalSeconds % 60).toString().padLeft(2, '0');
+    if (d.inHours > 0) {
+      final hours = d.inHours.toString();
+      return '$hours:$minutes:$seconds';
+    }
+    return '$minutes:$seconds';
+  }
+
+  void _seekTo(Duration position) {
+    setState(() {
+      _currentPosition = position;
+    });
+    _webViewController?.runJavaScript(
+      'window.__seekVideo && window.__seekVideo(${position.inSeconds});',
+    );
+  }
+
+  void _seekRelative(int seconds) {
+    final newSeconds = (_currentPosition.inSeconds + seconds)
+        .clamp(0, _totalDuration.inSeconds);
+    setState(() {
+      _currentPosition = Duration(seconds: newSeconds);
+    });
+    _webViewController?.runJavaScript(
+      'window.__seekRelative && window.__seekRelative($seconds);',
+    );
+  }
+
+  void _toggleMute() {
+    setState(() {
+      _isMuted = !_isMuted;
+    });
+    _webViewController?.runJavaScript(
+      'window.__toggleMute && window.__toggleMute();',
+    );
+  }
+
+  void _toggleSubDub() {
+    setState(() {
+      _isDub = !_isDub;
+    });
+    StorageService.setDub(_isDub);
+    _loadStreamForEpisode(_currentEpisode);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Beralih ke audio ${_isDub ? "DUB" : "SUB"}'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showSpeedPicker() {
+    const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              child: Row(
+                children: [
+                  Text(
+                    'Kecepatan Putar',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: Icon(Icons.close, color: AppColors.textSecondary),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+            ),
+            Divider(color: AppColors.border, height: 1),
+            ...speeds.map(
+              (s) => ListTile(
+                title: Text(
+                  s == 1.0 ? '1.0x (Normal)' : '${s}x',
+                  style: TextStyle(
+                    color: _playbackSpeed == s
+                        ? AppColors.accent
+                        : AppColors.textPrimary,
+                    fontWeight: _playbackSpeed == s
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                  ),
+                ),
+                trailing: _playbackSpeed == s
+                    ? const Icon(Icons.check, color: AppColors.accent)
+                    : null,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  setState(() => _playbackSpeed = s);
+                  _webViewController?.runJavaScript(
+                    'window.__setSpeed && window.__setSpeed($s);',
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSleepTimerPicker() {
+    final options = [
+      {'label': 'Mati (Off)', 'duration': null},
+      {'label': '15 Menit', 'duration': const Duration(minutes: 15)},
+      {'label': '30 Menit', 'duration': const Duration(minutes: 30)},
+      {'label': '45 Menit', 'duration': const Duration(minutes: 45)},
+      {'label': '60 Menit', 'duration': const Duration(minutes: 60)},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              child: Row(
+                children: [
+                  Text(
+                    'Timer Tidur',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: Icon(Icons.close, color: AppColors.textSecondary),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+            ),
+            Divider(color: AppColors.border, height: 1),
+            ...options.map((opt) {
+              final dur = opt['duration'] as Duration?;
+              return ListTile(
+                title: Text(
+                  opt['label'] as String,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _setSleepTimer(dur);
+                },
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _setSleepTimer(Duration? duration) {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    if (duration == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Timer tidur dimatikan'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    _sleepTimer = Timer(duration, () {
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+        });
+        _webViewController?.runJavaScript(
+          'window.__togglePlay && window.__togglePlay();',
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Timer tidur: Pemutaran dihentikan'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Timer tidur disetel untuk ${duration.inMinutes} menit'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showCastDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.cast_rounded,
+                  size: 36,
+                  color: AppColors.accent,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Pemeran Layar (Cast to TV)',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Hubungkan ponsel dan Smart TV atau Chromecast Anda ke jaringan Wi-Fi yang sama untuk transmisi video.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(46),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(23),
+                  ),
+                ),
+                child: const Text('Tutup'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _triggerPip() {
+    _webViewController?.runJavaScript('''
+      try {
+        var v = document.querySelector('video');
+        if (v && document.pictureInPictureEnabled) {
+          if (document.pictureInPictureElement) {
+            document.exitPictureInPicture();
+          } else {
+            v.requestPictureInPicture();
+          }
+        }
+      } catch(e) {}
+    ''');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Mengaktifkan Picture-in-Picture...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _downloadCurrentEpisode() {
+    DownloadProgressDialog.show(
+      context,
+      episodeNumber: _currentEpisode.number,
+      totalEpisodes: _allEpisodes.isNotEmpty ? _allEpisodes.length : 1,
+      resolution: '720p',
+      totalMb: 246.5,
+      onHide: () async {
+        await StorageService.saveDownload(
+          DownloadItem(
+            animeId: widget.anime.id,
+            animeSlug: widget.anime.slug,
+            animeTitle: widget.anime.title,
+            animePoster: widget.anime.posterUrl,
+            episodeNumber: _currentEpisode.number,
+            episodeTitle: _currentEpisode.title,
+            resolution: '720p',
+            sizeMb: 246.5,
+          ),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Unduhan tersimpan di daftar Download'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  void _showMoreOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                child: Row(
+                  children: [
+                    Text(
+                      'Opsi Video',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: Icon(Icons.close, color: AppColors.textSecondary),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(color: AppColors.border, height: 1),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.speed_rounded,
+                          color: AppColors.accent),
+                      title: const Text('Kecepatan Putar'),
+                      subtitle: Text('${_playbackSpeed}x'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _showSpeedPicker();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.timer_outlined,
+                          color: AppColors.accent),
+                      title: const Text('Timer Tidur'),
+                      subtitle: Text(_sleepTimer != null
+                          ? 'Aktif'
+                          : 'Nonaktif'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _showSleepTimerPicker();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.fast_forward_rounded,
+                          color: AppColors.accent),
+                      title: const Text('Lewati Intro Sekarang (+85d)'),
+                      subtitle:
+                          const Text('Langsung lompat melewati intro video'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _skipIntro();
+                      },
+                    ),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.skip_next_rounded,
+                          color: AppColors.accent),
+                      title: const Text('Lewati Intro Otomatis'),
+                      subtitle: Text(_autoSkipIntro
+                          ? 'Aktif (Intro langsung dilewati saat diputar)'
+                          : 'Nonaktif (Tombol muncul saat intro berlangsung)'),
+                      value: _autoSkipIntro,
+                      onChanged: (val) async {
+                        setState(() => _autoSkipIntro = val);
+                        await StorageService.setAutoSkipIntro(val);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.mic_none_rounded,
+                          color: AppColors.accent),
+                      title: const Text('Pilihan Audio (SUB / DUB)'),
+                      subtitle: Text(_isDub ? 'DUB (Inggris)' : 'SUB (Jepang)'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _toggleSubDub();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.subtitles_rounded,
+                          color: AppColors.accent),
+                      title: Text(_subIndoEnabled
+                          ? 'Nonaktifkan Subtitle Indo'
+                          : 'Aktifkan Subtitle Indo'),
+                      subtitle: Text(_subIndoEnabled
+                          ? 'Teks diterjemahkan otomatis ke Bahasa Indonesia'
+                          : 'Menggunakan teks bawaan server (English CC)'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _toggleSubtitleIndonesia();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.cast_rounded,
+                          color: AppColors.accent),
+                      title: const Text('Cast ke Smart TV / Layar Nirkabel'),
+                      subtitle:
+                          const Text('Koneksikan ke Google Cast atau TV'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _showCastDialog();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(
+                          Icons.picture_in_picture_alt_rounded,
+                          color: AppColors.accent),
+                      title: const Text('Picture in Picture (PiP)'),
+                      subtitle:
+                          const Text('Tonton sambil membuka aplikasi lain'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _triggerPip();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.file_download_outlined,
+                          color: AppColors.accent),
+                      title: const Text('Unduh Episode Ini'),
+                      subtitle: const Text('Simpan untuk ditonton luring'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _downloadCurrentEpisode();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.video_library_outlined,
+                          color: AppColors.accent),
+                      title: const Text('Daftar Episode'),
+                      subtitle:
+                          Text('${_allEpisodes.length} episode tersedia'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        setState(() => _isEpisodeDrawerOpen = true);
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.open_in_new,
+                          color: AppColors.accent),
+                      title:
+                          const Text('Buka di Pemutar Eksternal (MPV / VLC)'),
+                      subtitle: const Text(
+                          'Putar langsung dengan pemutar video pihak ketiga'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _openInExternalPlayer();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.help_outline,
+                          color: AppColors.accent),
+                      title: const Text('Panduan Sub Indo di MPV'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _showMpvGuideDialog();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _toggleSubtitleIndonesia() {
     setState(() {
       _subIndoEnabled = !_subIndoEnabled;
@@ -886,7 +2110,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       SnackBar(
         content: Text(
           _subIndoEnabled
-              ? 'Subtitle Indonesia diaktifkan (Terjemahan Otomatis)'
+              ? 'Subtitle Indonesia diaktifkan (Latar belakang transparan)'
               : 'Subtitle beralih ke teks bawaan (English CC)',
         ),
         duration: const Duration(seconds: 2),
@@ -1164,20 +2388,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (_isFullscreen) {
       return Scaffold(
         backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            _buildPlayerView(),
-            Positioned(
-              top: 16,
-              right: 16,
-              child: IconButton(
-                icon: const Icon(Icons.fullscreen_exit,
-                    color: Colors.white, size: 28),
-                onPressed: _toggleFullscreen,
-              ),
-            ),
-          ],
-        ),
+        body: _buildPlayerView(),
       );
     }
 
@@ -1443,12 +2654,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Pilihan Audio Suara:',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Text(
+                          'Pilihan Audio Suara:',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                       Container(
@@ -1512,13 +2725,27 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
                   // Action Buttons: Select Episode
                   OutlinedButton.icon(
-                    onPressed: _showEpisodePickerSheet,
+                    onPressed: _allEpisodes.isEmpty
+                        ? () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                  'Anime ini belum resmi rilis di server streaming.',
+                                ),
+                                backgroundColor: AppColors.surface,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        : _showEpisodePickerSheet,
                     icon: Icon(Icons.list_rounded,
                         color: AppColors.textPrimary),
                     label: Text(
                       _isLoadingEpisodes
                           ? 'Memuat Daftar Episode...'
-                          : 'Daftar Episode (${_allEpisodes.length})',
+                          : (_allEpisodes.isEmpty
+                              ? 'Daftar Episode (Akan Datang)'
+                              : 'Daftar Episode (${_allEpisodes.length})'),
                     ),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(48),
@@ -1640,6 +2867,70 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
 
     if (_errorMessage != null) {
+      final isUpcoming = widget.anime.isUpcoming ||
+          _allEpisodes.isEmpty ||
+          (widget.anime.status?.toLowerCase().contains('not yet') == true);
+
+      if (isUpcoming) {
+        return Container(
+          color: const Color(0xFF1E293B),
+          padding: const EdgeInsets.all(20),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.schedule_rounded,
+                    color: Colors.amber,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Anime Belum Rilis (Akan Datang)',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                  label: const Text('Kembali ke Detail'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber.shade700,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(140, 38),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
       return Container(
         color: const Color(0xFF1E293B),
         padding: const EdgeInsets.all(16),
@@ -1671,38 +2962,66 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
 
     if (_webViewController != null) {
+      final currentIndex =
+          _allEpisodes.indexWhere((e) => e.number == _currentEpisode.number);
+      final hasPrev = currentIndex > 0;
+      final hasNext =
+          currentIndex >= 0 && currentIndex < _allEpisodes.length - 1;
+
+      final Widget webView;
+      final platform = _webViewController!.platform;
+      if (platform is AndroidWebViewController) {
+        webView = WebViewWidget.fromPlatformCreationParams(
+          params: AndroidWebViewWidgetCreationParams(
+            controller: platform,
+            displayWithHybridComposition: true,
+          ),
+        );
+      } else {
+        webView = WebViewWidget(controller: _webViewController!);
+      }
+
       return Stack(
         fit: StackFit.expand,
         children: [
-          WebViewWidget(controller: _webViewController!),
+          webView,
           if (_subIndoEnabled && _currentSubtitleText.isNotEmpty)
             Positioned(
-              bottom: _isFullscreen ? 36 : 18,
-              left: 16,
-              right: 16,
+              bottom: _isFullscreen
+                  ? (_isControlsVisible ? 76.0 : 24.0)
+                  : (_isControlsVisible ? 48.0 : 10.0),
+              left: 12,
+              right: 12,
               child: IgnorePointer(
                 child: Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 4),
-                    decoration: const BoxDecoration(
-                      color: Colors.transparent,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: _isFullscreen ? 14 : 10,
+                      vertical: _isFullscreen ? 5 : 3.5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        width: 0.8,
+                      ),
                     ),
                     child: Text(
                       _currentSubtitleText,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
-                        fontSize: 16.5,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.25,
+                        fontSize: _isFullscreen ? 17.0 : 13.0,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
                         height: 1.25,
-                        shadows: [
-                          Shadow(offset: Offset(-1.5, -1.5), color: Colors.black, blurRadius: 1),
-                          Shadow(offset: Offset(1.5, -1.5), color: Colors.black, blurRadius: 1),
-                          Shadow(offset: Offset(1.5, 1.5), color: Colors.black, blurRadius: 1),
-                          Shadow(offset: Offset(-1.5, 1.5), color: Colors.black, blurRadius: 1),
-                          Shadow(offset: Offset(0, 2), color: Colors.black, blurRadius: 5),
+                        shadows: const [
+                          Shadow(
+                            offset: Offset(0, 1),
+                            color: Colors.black87,
+                            blurRadius: 3,
+                          ),
                         ],
                       ),
                     ),
@@ -1710,6 +3029,96 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ),
               ),
             ),
+          VideoPlayerOverlay(
+            title: '${widget.anime.title} - Episode ${_currentEpisode.number}',
+            currentPosition: _currentPosition,
+            totalDuration: _totalDuration,
+            isPlaying: _isPlaying,
+            isMuted: _isMuted,
+            isLocked: _isLocked,
+            isFullscreen: _isFullscreen,
+            isSubIndoActive: _subIndoEnabled,
+            playbackSpeed: _playbackSpeed,
+            onControlsVisibilityChanged: (visible) {
+              if (mounted && _isControlsVisible != visible) {
+                setState(() => _isControlsVisible = visible);
+              }
+            },
+            onBackPressed: () {
+              if (_isFullscreen) {
+                _toggleFullscreen();
+              } else {
+                Navigator.pop(context);
+              }
+            },
+            onPlayPausePressed: _togglePlayPause,
+            onSeek: _seekTo,
+            onRewind10: () => _seekRelative(-10),
+            onForward10: () => _seekRelative(10),
+            onPreviousEpisode: hasPrev ? _goToPreviousEpisode : null,
+            onNextEpisode: hasNext ? _goToNextEpisode : null,
+            onToggleMute: _toggleMute,
+            onToggleLock: () => setState(() => _isLocked = !_isLocked),
+            onToggleFullscreen: _toggleFullscreen,
+            onSpeedPressed: _showSpeedPicker,
+            onTimerPressed: _showSleepTimerPicker,
+            onSubtitlesPressed: _toggleSubtitleIndonesia,
+            onAudioTrackPressed: _toggleSubDub,
+            onCastPressed: _showCastDialog,
+            onPipPressed: _triggerPip,
+            onMorePressed: _showMoreOptions,
+            onDownloadPressed: _downloadCurrentEpisode,
+            onEpisodeListPressed: () {
+              setState(() {
+                _isEpisodeDrawerOpen = !_isEpisodeDrawerOpen;
+              });
+            },
+            showSkipIntro: _showSkipIntroButton,
+            onSkipIntro: _skipIntro,
+            showSkipOutro: _showSkipOutroButton,
+            onSkipOutro: _skipOutro,
+            isBuffering: _isBuffering,
+            isNetworkStalled: _isNetworkStalled,
+            stallSeconds: _stallSeconds,
+            onRetryPlayback: _retryPlayback,
+            onSwitchServer: _switchServerQuickly,
+          ),
+          if (_isEpisodeDrawerOpen) ...[
+            // Dimmed dismiss barrier over left side
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => setState(() => _isEpisodeDrawerOpen = false),
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.35),
+                ),
+              ),
+            ),
+            // Right-side episode drawer matching Figma reference
+            Positioned(
+              top: 0,
+              bottom: 0,
+              right: 0,
+              child: PlayerEpisodeDrawer(
+                episodes: _allEpisodes,
+                currentEpisodeNumber: _currentEpisode.number,
+                currentProgress: _totalDuration.inSeconds > 0
+                    ? (_currentPosition.inSeconds / _totalDuration.inSeconds)
+                    : 0.85,
+                totalDurationText: _formatDuration(_totalDuration),
+                onEpisodeSelected: (ep) {
+                  setState(() {
+                    _currentEpisode = ep;
+                    _isEpisodeDrawerOpen = false;
+                  });
+                  _loadStreamForEpisode(ep);
+                },
+                onClose: () {
+                  setState(() => _isEpisodeDrawerOpen = false);
+                },
+              ),
+            ),
+          ],
         ],
       );
     }

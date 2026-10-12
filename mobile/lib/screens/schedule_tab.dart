@@ -25,91 +25,27 @@ class _ScheduleTabState extends State<ScheduleTab> {
   final Map<String, List<AnimeItem>> _scheduleCache = {};
 
   static const List<String> _dayNames = [
-    'Mon',
-    'Tue',
-    'Wed',
-    'Thu',
-    'Fri',
-    'Sat',
-    'Sun',
+    'Sen',
+    'Sel',
+    'Rab',
+    'Kam',
+    'Jum',
+    'Sab',
+    'Min',
   ];
-
-  // Curated schedule matching reference screenshot 6 for Monday 20
-  static final List<AnimeItem> _mon20Seed = [
-    const AnimeItem(
-      id: '21',
-      slug: 'one-piece-100',
-      title: 'One Piece',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx21-ELSYx3yMPcKM.jpg',
-      bannerUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/banner/21-wf37VakJmZqs.jpg',
-      totalEpisodes: 1080,
-      episodeLabel: 'Episodes 1080',
-      statusBadge: '00:30',
-      type: 'TV',
-      score: '9.9',
-    ),
-    const AnimeItem(
-      id: '113415',
-      slug: 'jujutsu-kaisen-2nd-season-502',
-      title: 'Jujutsu Kaisen Season 2',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx113415-LHBAeoZDIsnF.jpg',
-      bannerUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/banner/145064-esDtAY2He7sk.jpg',
-      totalEpisodes: 12,
-      episodeLabel: 'Episodes 12',
-      statusBadge: '12:00',
-      type: 'TV',
-      score: '9.8',
-    ),
-    const AnimeItem(
-      id: '111321',
-      slug: 'tate-no-yuusha-no-nariagari-season-2',
-      title: 'The Rising of The Shield..',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx111321-dIr3dEKOIPer.png',
-      bannerUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/banner/111321-nnetF1qONAcE.jpg',
-      totalEpisodes: 20,
-      episodeLabel: 'Episodes 20',
-      statusBadge: '20:30',
-      type: 'TV',
-      score: '9.6',
-    ),
-    const AnimeItem(
-      id: '116605',
-      slug: 'date-a-live-iv',
-      title: 'Date A Live Season IV',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx116605-uzDakXnaZ1OW.jpg',
-      bannerUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/banner/116605-qmByNsRP3c53.jpg',
-      totalEpisodes: 12,
-      episodeLabel: 'Episodes 12',
-      statusBadge: '22:00',
-      type: 'TV',
-      score: '9.5',
-    ),
-  ];
-
-  // Default bookmarked IDs so Jujutsu Kaisen displays ✓ My List on initial load
-  final Set<String> _bookmarkedIds = {'113415'};
 
   @override
   void initState() {
     super.initState();
-    // Anchor to May 2024 where 20 is Mon, 19 is Sun, 18 is Sat matching screenshot exactly
-    _selectedDate = DateTime(2024, 5, 20);
+    final now = DateTime.now();
+    _selectedDate = DateTime(now.year, now.month, now.day);
 
-    // Build calendar dates with Sat 18, Sun 19, Mon 20, Tue 21, Wed 22, Thu 23, Fri 24
-    _calendarDates = List.generate(21, (index) {
-      return DateTime(2024, 5, 14 + index);
+    // Build 14-day calendar strip: 3 days past, today, and 10 days ahead
+    _calendarDates = List.generate(14, (index) {
+      final base = now.subtract(const Duration(days: 3));
+      final d = base.add(Duration(days: index));
+      return DateTime(d.year, d.month, d.day);
     });
-
-    // Ensure JJK has bookmark in StorageService as well
-    _seedInitialBookmarks();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToSelectedDate();
@@ -119,31 +55,12 @@ class _ScheduleTabState extends State<ScheduleTab> {
   }
 
   bool _isBookmarked(AnimeItem anime) {
-    if (_bookmarkedIds.contains(anime.id) ||
-        _bookmarkedIds.contains(anime.slug)) {
-      return true;
-    }
     return StorageService.isBookmarked(anime.id, anime.slug);
   }
 
   Future<void> _toggleBookmark(AnimeItem anime) async {
-    final currentlyBookmarked = _isBookmarked(anime);
-    setState(() {
-      if (currentlyBookmarked) {
-        _bookmarkedIds.remove(anime.id);
-        _bookmarkedIds.remove(anime.slug);
-      } else {
-        _bookmarkedIds.add(anime.id);
-      }
-    });
     await StorageService.toggleBookmark(anime);
-  }
-
-  void _seedInitialBookmarks() async {
-    if (!StorageService.isBookmarked('113415', 'jujutsu-kaisen-2nd-season-502')) {
-      await StorageService.toggleBookmark(_mon20Seed[1]);
-      if (mounted) setState(() {});
-    }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -175,26 +92,31 @@ class _ScheduleTabState extends State<ScheduleTab> {
   String _dateKey(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
+  bool _isToday(DateTime d) {
+    final now = DateTime.now();
+    return d.year == now.year && d.month == now.month && d.day == now.day;
+  }
+
+  int get _currentTimeDividerIndex {
+    final now = DateTime.now();
+    final currentMinutes = now.hour * 60 + now.minute;
+    for (int i = 0; i < _scheduledAnime.length; i++) {
+      final item = _scheduledAnime[i];
+      final timeParts =
+          (item.statusBadge?.replaceAll('Pukul ', '') ?? '').split(':');
+      if (timeParts.length >= 2) {
+        final h = int.tryParse(timeParts[0]) ?? 0;
+        final m = int.tryParse(timeParts[1]) ?? 0;
+        if (h * 60 + m >= currentMinutes) {
+          return i;
+        }
+      }
+    }
+    return 0;
+  }
+
   Future<void> _loadScheduleForDate(DateTime date) async {
     final key = _dateKey(date);
-
-    // Sunday 19 in screenshot has NO release schedule
-    if (date.day == 19) {
-      setState(() {
-        _scheduledAnime = [];
-        _isLoading = false;
-      });
-      return;
-    }
-
-    // Monday 20 in screenshot has the 4 exact schedule anime
-    if (date.day == 20) {
-      setState(() {
-        _scheduledAnime = List.from(_mon20Seed);
-        _isLoading = false;
-      });
-      return;
-    }
 
     if (_scheduleCache.containsKey(key)) {
       setState(() {
@@ -269,7 +191,7 @@ class _ScheduleTabState extends State<ScheduleTab> {
                   // Title
                   Expanded(
                     child: Text(
-                      'Release Calendar',
+                      'Jadwal Rilis Mingguan',
                       style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 20,
@@ -278,24 +200,18 @@ class _ScheduleTabState extends State<ScheduleTab> {
                       ),
                     ),
                   ),
-                  // More Options Button (Circle with three dots)
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.border,
-                        width: 1.2,
-                      ),
+                  // Refresh Button
+                  IconButton(
+                    icon: Icon(
+                      Icons.refresh_rounded,
+                      color: AppColors.textPrimary,
+                      size: 22,
                     ),
-                    child: Center(
-                      child: Icon(
-                        Icons.more_horiz_rounded,
-                        size: 20,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
+                    tooltip: 'Segarkan Jadwal',
+                    onPressed: () {
+                      _scheduleCache.remove(_dateKey(_selectedDate));
+                      _loadScheduleForDate(_selectedDate);
+                    },
                   ),
                 ],
               ),
@@ -464,9 +380,9 @@ class _ScheduleTabState extends State<ScheduleTab> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // If Monday 20 seed, insert Current Time divider between 00:30 and 12:00
-            if (index == 1 && _selectedDate.day == 20)
-              _buildCurrentTimeDivider('09:41'),
+            // Dynamic Current Time divider on today
+            if (_isToday(_selectedDate) && index == _currentTimeDividerIndex)
+              _buildCurrentTimeDivider(),
 
             // 1. Time Header with green dash
             Padding(
@@ -557,14 +473,17 @@ class _ScheduleTabState extends State<ScheduleTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        anime.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
+                      GestureDetector(
+                        onTap: () => _openDetail(anime),
+                        child: Text(
+                          anime.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 4),

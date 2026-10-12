@@ -62,7 +62,13 @@ class AppTheme {
 
   static void updateThemeMode(ThemeMode mode) {
     themeNotifier.value = mode;
-    AppColors.isDarkMode = (mode == ThemeMode.dark);
+    if (mode == ThemeMode.system) {
+      final brightness =
+          WidgetsBinding.instance.platformDispatcher.platformBrightness;
+      AppColors.isDarkMode = (brightness == Brightness.dark);
+    } else {
+      AppColors.isDarkMode = (mode == ThemeMode.dark);
+    }
     _updateSystemOverlay(mode);
   }
 
@@ -168,7 +174,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      scaffoldBackgroundColor: const Color(0xFFF6F8FC),
+      scaffoldBackgroundColor: const Color(0xFFFFFFFF),
       colorScheme: const ColorScheme.light(
         primary: AppColors.accent,
         onPrimary: Colors.white,
@@ -178,7 +184,7 @@ class AppTheme {
       ),
       fontFamily: 'Roboto',
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFFF6F8FC),
+        backgroundColor: Color(0xFFFFFFFF),
         foregroundColor: Color(0xFF0F172A),
         elevation: 0,
         scrolledUnderElevation: 0,

@@ -146,15 +146,8 @@ class _TopHitsScreenState extends State<TopHitsScreen> {
     try {
       final fetched = await _animeService.getPalingPopuler();
       if (mounted && fetched.isNotEmpty) {
-        // Merge with seed ensuring the top 4 matching screenshot stay first
-        final List<AnimeItem> merged = List.from(_initialTopHits);
-        for (var item in fetched) {
-          if (!merged.any((m) => m.title.toLowerCase() == item.title.toLowerCase() || m.slug == item.slug)) {
-            merged.add(item);
-          }
-        }
         setState(() {
-          _topHitsList = merged;
+          _topHitsList = fetched;
         });
       }
     } catch (_) {}

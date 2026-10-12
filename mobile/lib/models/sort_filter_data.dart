@@ -8,9 +8,9 @@ class SortFilterData {
   const SortFilterData({
     this.sort = 'Popularity',
     this.category = 'Episode',
-    this.region = 'Japan',
-    this.genre = 'Action',
-    this.releaseYear = '2022',
+    this.region = 'All',
+    this.genre = 'All',
+    this.releaseYear = 'All',
   });
 
   /// Factory for reset / default state
@@ -36,6 +36,7 @@ class SortFilterData {
   }
 
   bool get hasActiveFilter =>
+      sort != 'Popularity' ||
       genre != 'All' ||
       category != 'Episode' ||
       (region != 'All' && region.isNotEmpty) ||

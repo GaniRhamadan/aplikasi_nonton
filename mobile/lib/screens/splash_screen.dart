@@ -92,27 +92,35 @@ class _SplashScreenState extends State<SplashScreen>
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: Column(
-            children: [
-              const Spacer(flex: 7),
-              // Iconic Centered Brand Logo
-              ScaleTransition(
-                scale: _scaleAnimation,
-                child: const BrandLogo(
-                  size: 76,
-                  color: AppColors.accent,
+        child: SizedBox.expand(
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Spacer(flex: 7),
+                // Iconic Centered Brand Logo
+                Center(
+                  child: ScaleTransition(
+                    scale: _scaleAnimation,
+                    child: const BrandLogo(
+                      size: 76,
+                      color: AppColors.accent,
+                    ),
+                  ),
                 ),
-              ),
-              const Spacer(flex: 6),
-              // Circular 8-Dot Loading Spinner
-              const BrandDotsSpinner(
-                size: 32,
-                color: AppColors.accent,
-              ),
-              const Spacer(flex: 3),
-            ],
+                const Spacer(flex: 6),
+                // Circular 8-Dot Loading Spinner
+                const Center(
+                  child: BrandDotsSpinner(
+                    size: 32,
+                    color: AppColors.accent,
+                  ),
+                ),
+                const Spacer(flex: 3),
+              ],
+            ),
           ),
         ),
       ),

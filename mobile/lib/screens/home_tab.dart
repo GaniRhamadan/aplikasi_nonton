@@ -8,9 +8,11 @@ import '../services/update_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/brand_logo.dart';
 import 'anime_detail_screen.dart';
+import 'history_screen.dart';
 import 'new_episode_releases_screen.dart';
 import 'notification_screen.dart';
 import 'search_screen.dart';
+import 'settings_tab.dart';
 import 'top_hits_screen.dart';
 
 class HomeTab extends StatefulWidget {
@@ -101,54 +103,13 @@ class _HomeTabState extends State<HomeTab> {
     ),
   ];
 
-  static final List<AnimeItem> _newReleasesSeed = [
-    const AnimeItem(
-      id: '132405',
-      slug: 'sono-bisque-doll-wa-koi-wo-suru',
-      title: 'My Dress-Up Darling',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx132405-z3qjKx9hL7W6.jpg',
-      bannerUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/banner/132405-g8tF6s2iH0xP.jpg',
-      score: '9.5',
-      episodeLabel: 'Episode 12',
-      status: 'Ongoing',
-    ),
-    const AnimeItem(
-      id: '125367',
-      slug: 'kaguya-sama-wa-kokurasetai-ultra-romantic',
-      title: 'Kaguya-sama: Ultra Romantic',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx125367-q2mN8z1fB9kH.jpg',
-      score: '9.8',
-      episodeLabel: 'Episode 13',
-      status: 'Ongoing',
-    ),
-    const AnimeItem(
-      id: '137281',
-      slug: 'kingdom-4th-season',
-      title: 'Kingdom 4th Season',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx137281-i4UHcGkUi7j6.jpg',
-      score: '9.7',
-      episodeLabel: 'Episode 26',
-      status: 'Ongoing',
-    ),
-    const AnimeItem(
-      id: '154587',
-      slug: 'sousou-no-frieren',
-      title: 'Sousou no Frieren',
-      posterUrl:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx154587-qQTzQnEJJ3oB.jpg',
-      score: '9.8',
-      episodeLabel: 'Episode 28',
-      status: 'Ongoing',
-    ),
-  ];
+
 
   List<AnimeItem> _featuredList = [];
   List<AnimeItem> _topHits = [];
-  List<AnimeItem> _newReleases = [];
+  List<AnimeItem> _latestEpisodes = [];
+  List<AnimeItem> _newOnHiAnime = [];
+  List<AnimeItem> _topUpcoming = [];
   List<AnimeItem> _continueWatching = [];
 
   final PageController _heroController = PageController();
@@ -198,11 +159,7 @@ class _HomeTabState extends State<HomeTab> {
     setState(() => _isLoading = true);
 
     try {
-      final results = await Future.wait([
-        _animeService.getSedangHangat().catchError((_) => <AnimeItem>[]),
-        _animeService.getEpisodeBaru().catchError((_) => <AnimeItem>[]),
-        _animeService.getPalingPopuler().catchError((_) => <AnimeItem>[]),
-      ]);
+      final homeData = await _animeService.getHomePageSections();
 
       if (mounted) {
         // Continue watching history
@@ -221,26 +178,20 @@ class _HomeTabState extends State<HomeTab> {
               .toList();
         }
 
-        // Featured Hero List (Demon Slayer first as per screenshot)
-        List<AnimeItem> featured = [_topHitsSeed[1]]; // Demon Slayer
-        final popular = results[2].isNotEmpty ? results[2] : _topHitsSeed;
-        for (var item in popular) {
-          if (item.title != _topHitsSeed[1].title && featured.length < 5) {
-            featured.add(item);
-          }
+        // Featured Hero List (from Latest or Trending)
+        List<AnimeItem> featured = [];
+        if (homeData.latestEpisodes.isNotEmpty) {
+          featured = homeData.latestEpisodes.take(5).toList();
+        } else if (_topHitsSeed.isNotEmpty) {
+          featured = [_topHitsSeed[1], _topHitsSeed[0], _topHitsSeed[2]];
         }
-
-        // Top Hits
-        final topHits = results[0].isNotEmpty ? results[0] : _topHitsSeed;
-
-        // New releases
-        final newReleases =
-            results[1].isNotEmpty ? results[1] : _newReleasesSeed;
 
         setState(() {
           _featuredList = featured;
-          _topHits = topHits;
-          _newReleases = newReleases;
+          _latestEpisodes = homeData.latestEpisodes;
+          _newOnHiAnime = homeData.newOnHiAnime;
+          _topUpcoming = homeData.topUpcoming;
+          _topHits = homeData.top10.isNotEmpty ? homeData.top10 : _topHitsSeed;
           _continueWatching = continueList;
           _isLoading = false;
         });
@@ -250,7 +201,9 @@ class _HomeTabState extends State<HomeTab> {
         setState(() {
           _featuredList = [_topHitsSeed[1], _topHitsSeed[0], _topHitsSeed[2]];
           _topHits = _topHitsSeed;
-          _newReleases = _newReleasesSeed;
+          _latestEpisodes = [];
+          _newOnHiAnime = [];
+          _topUpcoming = [];
           _isLoading = false;
         });
       }
@@ -271,6 +224,15 @@ class _HomeTabState extends State<HomeTab> {
       context,
       MaterialPageRoute(
         builder: (context) => const NotificationScreen(),
+      ),
+    );
+  }
+
+  void _openSettingsScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SettingsTab(),
       ),
     );
   }
@@ -352,14 +314,66 @@ class _HomeTabState extends State<HomeTab> {
                 child: _buildContinueWatchingSection(),
               ),
 
-            // 3. "Top Hits Anime" Section (matching screenshot)
+            // 3. "Latest Episode" Section (matching screenshot)
             SliverToBoxAdapter(
-              child: _buildTopHitsSection(),
+              child: _buildSectionRow(
+                title: 'Latest Episode',
+                items: _latestEpisodes,
+                onViewMore: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NewEpisodeReleasesScreen(
+                        title: 'Latest Episode',
+                        initialItems: _latestEpisodes,
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
 
-            // 4. "New Episode Releases" Section (matching screenshot)
+            // 4. "New On HiAnime" Section (matching screenshot)
             SliverToBoxAdapter(
-              child: _buildNewReleasesSection(),
+              child: _buildSectionRow(
+                title: 'New On HiAnime',
+                items: _newOnHiAnime,
+                onViewMore: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NewEpisodeReleasesScreen(
+                        title: 'New On HiAnime',
+                        initialItems: _newOnHiAnime,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // 5. "Top Upcoming" Section (matching screenshot)
+            SliverToBoxAdapter(
+              child: _buildSectionRow(
+                title: 'Top Upcoming',
+                items: _topUpcoming,
+                onViewMore: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NewEpisodeReleasesScreen(
+                        title: 'Top Upcoming',
+                        initialItems: _topUpcoming,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // 6. "Top 10" Section
+            SliverToBoxAdapter(
+              child: _buildTopHitsSection(),
             ),
 
             // Bottom Spacing for Navigation Bar
@@ -417,20 +431,19 @@ class _HomeTabState extends State<HomeTab> {
             },
           ),
 
-          // Deep Dark Gradient Vignette Overlay
+          // Vignette Overlay for top app bar icons and bottom hero title/actions
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  stops: const [0.0, 0.20, 0.55, 0.85, 1.0],
+                  stops: const [0.0, 0.22, 0.55, 1.0],
                   colors: [
-                    Colors.black.withValues(alpha: 0.65),
+                    Colors.black.withValues(alpha: 0.55),
                     Colors.transparent,
-                    Colors.black.withValues(alpha: 0.35),
-                    Colors.black.withValues(alpha: 0.85),
-                    AppColors.canvas,
+                    Colors.black.withValues(alpha: 0.20),
+                    Colors.black.withValues(alpha: 0.70),
                   ],
                 ),
               ),
@@ -466,6 +479,15 @@ class _HomeTabState extends State<HomeTab> {
                       size: 26,
                     ),
                     onPressed: _openNotificationScreen,
+                  ),
+                  // Settings Icon
+                  IconButton(
+                    icon: const Icon(
+                      Icons.settings_outlined,
+                      color: Colors.white,
+                      size: 25,
+                    ),
+                    onPressed: _openSettingsScreen,
                   ),
                 ],
               ),
@@ -601,53 +623,17 @@ class _HomeTabState extends State<HomeTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const TopHitsScreen(),
-                    ),
-                  );
-                },
-                child: Text(
-                  'Top Hits Anime',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
-                  ),
-                ),
+        const SizedBox(height: 22),
+        _buildSectionHeader(
+          title: 'Top 10 Anime',
+          onViewMore: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const TopHitsScreen(),
               ),
-              InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const TopHitsScreen(),
-                    ),
-                  );
-                },
-                splashColor: Colors.transparent,
-                highlightColor: Colors.transparent,
-                child: const Text(
-                  'See all',
-                  style: TextStyle(
-                    color: AppColors.accent,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
         const SizedBox(height: 12),
 
@@ -766,179 +752,278 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  Widget _buildNewReleasesSection() {
-    final list = _newReleases.isNotEmpty ? _newReleases : _newReleasesSeed;
+  Widget _buildSectionHeader({
+    required String title,
+    required VoidCallback onViewMore,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Color(0xFFFF8AB2),
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
+            ),
+          ),
+          InkWell(
+            onTap: onViewMore,
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'View more',
+                  style: TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(width: 2),
+                Icon(
+                  Icons.chevron_right,
+                  color: Color(0xFF94A3B8),
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionRow({
+    required String title,
+    required List<AnimeItem> items,
+    required VoidCallback onViewMore,
+  }) {
+    if (items.isEmpty) {
+      if (_isLoading) {
+        return const SizedBox(
+          height: 240,
+          child: Center(
+            child: CircularProgressIndicator(color: AppColors.accent, strokeWidth: 2),
+          ),
+        );
+      }
+      return const SizedBox.shrink();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 24),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const NewEpisodeReleasesScreen(),
-                    ),
-                  );
-                },
-                child: Text(
-                  'New Episode Releases',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-              ),
-              InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const NewEpisodeReleasesScreen(),
-                    ),
-                  );
-                },
-                splashColor: Colors.transparent,
-                highlightColor: Colors.transparent,
-                child: const Text(
-                  'See all',
-                  style: TextStyle(
-                    color: AppColors.accent,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
+        const SizedBox(height: 22),
+        _buildSectionHeader(
+          title: title,
+          onViewMore: onViewMore,
         ),
         const SizedBox(height: 12),
-
-        // Horizontal Landscape Cards
         SizedBox(
-          height: 110,
+          height: 248,
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             scrollDirection: Axis.horizontal,
-            itemCount: list.length,
+            itemCount: items.length,
             separatorBuilder: (context, _) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
-              final anime = list[index];
-              final rating = (anime.score != null && anime.score!.isNotEmpty && anime.score != '0')
-                  ? anime.score!
-                  : (9.7 - (index * 0.1)).toStringAsFixed(1);
-              final displayImage = (anime.bannerUrl != null && anime.bannerUrl!.isNotEmpty)
-                  ? anime.bannerUrl!
-                  : anime.posterUrl;
-
-              return GestureDetector(
-                onTap: () => _navigateToDetail(anime),
-                child: Container(
-                  width: 160,
-                  height: 104,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    color: AppColors.surfaceHighlight,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: Image.network(
-                            displayImage,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                              color: AppColors.surfaceHighlight,
-                              child: const Center(
-                                child: Icon(Icons.movie_outlined,
-                                    color: Colors.white24, size: 28),
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Dark gradient overlay at bottom
-                        Positioned.fill(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                stops: const [0.4, 1.0],
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withValues(alpha: 0.75),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Top Left Rating Badge
-                        Positioned(
-                          top: 8,
-                          left: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.accent,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              rating,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Bottom Title / Episode Label
-                        Positioned(
-                          bottom: 6,
-                          left: 8,
-                          right: 8,
-                          child: Text(
-                            (anime.episodeLabel != null && anime.episodeLabel!.isNotEmpty)
-                                ? '${anime.title} • ${anime.episodeLabel}'
-                                : anime.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
+              return _buildHiAnimeCard(items[index]);
             },
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildHiAnimeCard(AnimeItem anime) {
+    final subtitle = (anime.releaseDate != null && anime.releaseDate!.isNotEmpty)
+        ? '${anime.type} • ${anime.releaseDate}'
+        : anime.type;
+
+    return GestureDetector(
+      onTap: () => _navigateToDetail(anime),
+      child: SizedBox(
+        width: 128,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Poster with bottom badges
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.network(
+                    anime.posterUrl,
+                    width: 128,
+                    height: 180,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      width: 128,
+                      height: 180,
+                      color: AppColors.surfaceHighlight,
+                      child: const Center(
+                        child: Icon(
+                          Icons.movie_outlined,
+                          color: Colors.white24,
+                          size: 36,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // Subtle gradient overlay at bottom
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: const [0.65, 1.0],
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.70),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // Badges row on bottom of poster
+                Positioned(
+                  bottom: 6,
+                  left: 6,
+                  right: 6,
+                  child: Wrap(
+                    spacing: 3,
+                    runSpacing: 3,
+                    children: [
+                      // Sub Badge (CC) - Light Mint Green
+                      if (anime.subEpisodes > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFB9F5D8),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.closed_caption,
+                                size: 11,
+                                color: Color(0xFF0F5132),
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                '${anime.subEpisodes}',
+                                style: const TextStyle(
+                                  color: Color(0xFF0F5132),
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // Dub Badge (Mic) - Light Sky Blue
+                      if (anime.dubEpisodes > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFBAE6FD),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.mic,
+                                size: 10,
+                                color: Color(0xFF0C4A6E),
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                '${anime.dubEpisodes}',
+                                style: const TextStyle(
+                                  color: Color(0xFF0C4A6E),
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // Total / Eps Badge - Translucent Dark
+                      if (anime.totalEpisodes > 0 &&
+                          (anime.totalEpisodes != anime.subEpisodes ||
+                              (anime.subEpisodes == 0 && anime.dubEpisodes == 0)))
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.65),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '${anime.totalEpisodes}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            // Title (max 2 lines)
+            Text(
+              anime.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                height: 1.25,
+              ),
+            ),
+            const SizedBox(height: 3),
+            // Subtitle (Type & Duration or Date)
+            Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -963,7 +1048,16 @@ class _HomeTabState extends State<HomeTab> {
               ),
               InkWell(
                 onTap: () {
-                  widget.onNavigateTab?.call(3);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const HistoryScreen(),
+                    ),
+                  ).then((_) {
+                    if (mounted) {
+                      _loadHomeData();
+                    }
+                  });
                 },
                 child: const Text(
                   'Riwayat',
@@ -996,6 +1090,13 @@ class _HomeTabState extends State<HomeTab> {
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AppColors.border, width: 1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Row(
                     children: [

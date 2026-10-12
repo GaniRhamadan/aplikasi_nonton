@@ -152,6 +152,80 @@ void main() {
     // Now expanded items should be visible
     expect(find.text('Isekai'), findsOneWidget);
     expect(find.text('Fantasy'), findsOneWidget);
+    expect(find.text('Vampire'), findsOneWidget);
     expect(find.text('See less'), findsOneWidget);
+  });
+
+  testWidgets('SortFilterScreen genre search filters list and applies selection',
+      (WidgetTester tester) async {
+    SortFilterData? appliedResult;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () async {
+                  final res = await Navigator.push<SortFilterData>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SortFilterScreen(),
+                    ),
+                  );
+                  appliedResult = res;
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    // Tap "See all"
+    await tester.tap(find.text('See all').first);
+    await tester.pumpAndSettle();
+
+    // Verify search input is present
+    expect(find.byType(TextField), findsOneWidget);
+
+    // Search for "Vampire"
+    await tester.enterText(find.byType(TextField), 'vamp');
+    await tester.pumpAndSettle();
+
+    // Vampire should be visible, Action should be filtered out
+    expect(find.text('Vampire'), findsOneWidget);
+    expect(find.text('Action'), findsNothing);
+
+    // Select Vampire
+    await tester.tap(find.text('Vampire'));
+    await tester.pumpAndSettle();
+
+    // Tap Apply
+    await tester.tap(find.text('Apply'));
+    await tester.pumpAndSettle();
+
+    expect(appliedResult, isNotNull);
+    expect(appliedResult!.genre, 'Vampire');
+  });
+
+  testWidgets('SortFilterScreen auto-expands genre when initial genre is outside top 9',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: const SortFilterScreen(
+          initialFilter: SortFilterData(genre: 'Vampire'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Since Vampire is outside initial 9, genres should auto-expand
+    expect(find.text('See less'), findsOneWidget);
+    expect(find.text('Vampire'), findsOneWidget);
   });
 }

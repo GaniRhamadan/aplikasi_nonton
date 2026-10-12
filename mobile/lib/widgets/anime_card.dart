@@ -122,57 +122,87 @@ class AnimeCard extends StatelessWidget {
                     right: 6,
                     child: Row(
                       children: [
-                        if (anime.subEpisodes > 0)
+                        if (anime.isUpcoming)
                           Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 2),
-                            margin: const EdgeInsets.only(right: 4),
                             decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.75),
+                              color:
+                                  Colors.amber.shade900.withValues(alpha: 0.9),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.closed_caption,
-                                    size: 12, color: Colors.white),
+                                const Icon(Icons.schedule_rounded,
+                                    size: 11, color: Colors.white),
                                 const SizedBox(width: 3),
                                 Text(
-                                  '${anime.subEpisodes}',
+                                  anime.releaseDate?.isNotEmpty == true
+                                      ? anime.releaseDate!
+                                      : 'Akan Datang',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 10,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        if (anime.dubEpisodes > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.accent.withValues(alpha: 0.9),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.mic,
-                                    size: 12, color: Colors.white),
-                                const SizedBox(width: 3),
-                                Text(
-                                  '${anime.dubEpisodes}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
+                          )
+                        else ...[
+                          if (anime.subEpisodes > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              margin: const EdgeInsets.only(right: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.75),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.closed_caption,
+                                      size: 12, color: Colors.white),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '${anime.subEpisodes}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
+                          if (anime.dubEpisodes > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.accent.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.mic,
+                                      size: 12, color: Colors.white),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '${anime.dubEpisodes}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
                       ],
                     ),
                   ),
@@ -237,6 +267,28 @@ class AnimeCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: AppColors.accent,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else if (anime.isUpcoming)
+                    Row(
+                      children: [
+                        const Icon(Icons.schedule_rounded,
+                            size: 11, color: Colors.amber),
+                        const SizedBox(width: 3),
+                        Expanded(
+                          child: Text(
+                            anime.releaseDate?.isNotEmpty == true
+                                ? 'Rilis ${anime.releaseDate}'
+                                : 'Akan Datang',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.amber,
                               fontSize: 10.5,
                               fontWeight: FontWeight.w700,
                             ),

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import 'download_tab.dart';
 import 'favorite_screen.dart';
 import 'home_tab.dart';
-import 'profile_tab.dart';
 import 'schedule_tab.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -18,6 +18,9 @@ class _HomeScreenState extends State<HomeScreen> {
   final Set<int> _loadedTabs = {0};
 
   void _onTabTapped(int index) {
+    if (index == 2) {
+      StorageService.refreshBookmarks();
+    }
     setState(() {
       _currentIndex = index;
       _loadedTabs.add(index);
@@ -35,7 +38,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _loadedTabs.contains(3)
           ? const DownloadTab(isTab: true)
           : const SizedBox.shrink(),
-      _loadedTabs.contains(4) ? const ProfileTab() : const SizedBox.shrink(),
     ];
 
     return Scaffold(
@@ -67,7 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   index: 1,
                   icon: Icons.calendar_month_outlined,
                   activeIcon: Icons.calendar_month_rounded,
-                  label: 'Release Ca...',
+                  label: 'Jadwal',
                 ),
                 _buildNavItem(
                   index: 2,
@@ -80,12 +82,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: Icons.file_download_outlined,
                   activeIcon: Icons.file_download_rounded,
                   label: 'Download',
-                ),
-                _buildNavItem(
-                  index: 4,
-                  icon: Icons.person_outline_rounded,
-                  activeIcon: Icons.person_rounded,
-                  label: 'Profile',
                 ),
               ],
             ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/sort_filter_data.dart';
+import '../services/anime_service.dart';
 import '../theme/app_theme.dart';
 
 class SortFilterScreen extends StatefulWidget {
@@ -23,6 +24,8 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
 
   bool _isGenreExpanded = false;
   bool _isYearExpanded = false;
+
+  final TextEditingController _genreSearchController = TextEditingController();
 
   // Options matching screenshot
   static const List<String> _sortOptions = ['Popularity', 'Latest Release'];
@@ -60,15 +63,104 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
     'Martial Arts',
     'Harem',
     'Demons',
+    'Action & Adventure',
+    'Adult Cast',
+    'Animation',
+    'Anthropomorphic',
+    'Avant Garde',
+    'Award Winning',
+    'Boys Love',
+    'Cars',
+    'CGDCT',
+    'Childcare',
+    'Combat Sports',
+    'Crossdressing',
+    'Delinquents',
+    'Dementia',
+    'Detective',
+    'Educational',
+    'Erotica',
+    'Gag Humor',
+    'Game',
+    'Girls Love',
+    'Gore',
+    'Gourmet',
+    'Hentai',
+    'High Stakes Game',
+    'Idols (Female)',
+    'Idols (Male)',
+    'Iyashikei',
+    'Josei',
+    'Kids',
+    'Love Polygon',
+    'Love Status Quo',
+    'Magical Sex Shift',
+    'Mahou Shoujo',
+    'Medical',
+    'Military',
+    'Mythology',
+    'Organized Crime',
+    'Otaku Culture',
+    'Parody',
+    'Performing Arts',
+    'Pets',
+    'Police',
+    'Racing',
+    'Reincarnation',
+    'Reverse Harem',
+    'Samurai',
+    'Sci-Fi & Fantasy',
+    'Shoujo',
+    'Shoujo Ai',
+    'Shounen Ai',
+    'Showbiz',
+    'Space',
+    'Strategy Game',
+    'Super Power',
+    'Survival',
+    'Suspense',
+    'Team Sports',
+    'Time Travel',
+    'Urban Fantasy',
+    'Vampire',
+    'Video Game',
+    'Villainess',
+    'Visual Arts',
+    'Workplace',
   ];
 
-  static const List<String> _initialYears = ['All', '2022', '2021'];
+  /// Get all unique genres combining initial, more, and any dynamic entries in AnimeService
+  static List<String> get allAvailableGenres {
+    final seen = <String>{};
+    final list = <String>[];
+    for (final g in _initialGenres) {
+      if (seen.add(g)) list.add(g);
+    }
+    for (final g in _moreGenres) {
+      if (seen.add(g)) list.add(g);
+    }
+    for (final item in AnimeService.allGenres) {
+      final name = item['name']?.trim() ?? '';
+      if (name.isEmpty ||
+          name.toLowerCase() == 'semua' ||
+          name.toLowerCase() == 'unknown' ||
+          name.contains(',')) {
+        continue;
+      }
+      if (seen.add(name)) {
+        list.add(name);
+      }
+    }
+    return list;
+  }
+
+  static const List<String> _initialYears = ['All', '2026', '2025'];
 
   static const List<String> _moreYears = [
-    '2026',
-    '2025',
     '2024',
     '2023',
+    '2022',
+    '2021',
     '2020',
     '2019',
     '2018',
@@ -86,6 +178,19 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
     _selectedRegion = filter.region;
     _selectedGenre = filter.genre;
     _selectedYear = filter.releaseYear;
+
+    // Automatically expand genres if user selected a genre outside the initial top 9
+    if (_selectedGenre.isNotEmpty &&
+        _selectedGenre != 'All' &&
+        !_initialGenres.contains(_selectedGenre)) {
+      _isGenreExpanded = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    _genreSearchController.dispose();
+    super.dispose();
   }
 
   void _onReset() {
@@ -95,6 +200,7 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
       _selectedRegion = 'All';
       _selectedGenre = 'All';
       _selectedYear = 'All';
+      _genreSearchController.clear();
     });
   }
 
@@ -113,12 +219,22 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final visibleGenres = _isGenreExpanded
-        ? [..._initialGenres, ..._moreGenres]
-        : _initialGenres;
+    final allGenresList = allAvailableGenres;
+    final searchQuery = _genreSearchController.text.trim().toLowerCase();
+
+    List<String> visibleGenres;
+    if (!_isGenreExpanded) {
+      visibleGenres = _initialGenres;
+    } else if (searchQuery.isNotEmpty) {
+      visibleGenres = allGenresList
+          .where((g) => g.toLowerCase().contains(searchQuery))
+          .toList();
+    } else {
+      visibleGenres = allGenresList;
+    }
 
     final visibleYears = _isYearExpanded
-        ? [..._initialYears, ..._moreYears]
+        ? <String>{..._initialYears, ..._moreYears}.toList()
         : _initialYears;
 
     return Scaffold(
@@ -217,11 +333,37 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _buildSectionTitle('Genre'),
+                        Row(
+                          children: [
+                            _buildSectionTitle('Genre'),
+                            if (_isGenreExpanded) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.accent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${allGenresList.length - 1} genres',
+                                  style: const TextStyle(
+                                    color: AppColors.accent,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                         GestureDetector(
                           onTap: () {
                             setState(() {
                               _isGenreExpanded = !_isGenreExpanded;
+                              if (!_isGenreExpanded) {
+                                _genreSearchController.clear();
+                              }
                             });
                           },
                           child: Text(
@@ -235,18 +377,79 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
                         ),
                       ],
                     ),
+                    if (_isGenreExpanded) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.surface : const Color(0xFFF5F7FA),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppColors.border,
+                            width: 1,
+                          ),
+                        ),
+                        child: TextField(
+                          controller: _genreSearchController,
+                          onChanged: (val) => setState(() {}),
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 13,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Search genre (e.g. Vampire, Isekai, Mecha)...',
+                            hintStyle: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12.5,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.search_rounded,
+                              size: 18,
+                              color: AppColors.accent,
+                            ),
+                            suffixIcon: _genreSearchController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, size: 16),
+                                    color: AppColors.textSecondary,
+                                    onPressed: () {
+                                      _genreSearchController.clear();
+                                      setState(() {});
+                                    },
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 12,
-                      children: visibleGenres.map((g) {
-                        return _buildPillChip(
-                          label: g,
-                          isSelected: _selectedGenre == g,
-                          onTap: () => setState(() => _selectedGenre = g),
-                        );
-                      }).toList(),
-                    ),
+                    if (visibleGenres.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text(
+                          'No genre matching "${_genreSearchController.text.trim()}"',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      )
+                    else
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 12,
+                        children: visibleGenres.map((g) {
+                          return _buildPillChip(
+                            label: g,
+                            isSelected: _selectedGenre == g,
+                            onTap: () => setState(() => _selectedGenre = g),
+                          );
+                        }).toList(),
+                      ),
 
                     const SizedBox(height: 24),
 

@@ -13,11 +13,21 @@ class StorageService {
   static const String _keySubLanguage = 'ani_pref_sub_lang';
   static const String _keyThemeMode = 'ani_theme_mode';
   static const String _keyOnboardingCompleted = 'ani_onboarding_completed';
+  static const String _keyThemeWhiteEnforced = 'ani_theme_white_enforced_v1';
+  static const String _keyAutoSkipIntro = 'ani_pref_auto_skip_intro';
 
   static SharedPreferences? _prefs;
 
   static Future<void> init() async {
     _prefs ??= await SharedPreferences.getInstance();
+    bookmarksNotifier.value = getBookmarks();
+    // Default to clean white theme matching Figma reference designs.
+    // Reset any legacy dark preference from old versions so user's phone opens in white light theme.
+    final hasSetLight = _prefs?.getBool(_keyThemeWhiteEnforced) ?? false;
+    if (!hasSetLight) {
+      await _prefs?.setString(_keyThemeMode, 'light');
+      await _prefs?.setBool(_keyThemeWhiteEnforced, true);
+    }
   }
 
   // --- Watch History (Strictly per-anime) ---
@@ -144,19 +154,35 @@ class StorageService {
   }
 
   // --- Bookmarks ---
+  static final ValueNotifier<List<AnimeItem>> bookmarksNotifier =
+      ValueNotifier<List<AnimeItem>>([]);
+
   static List<AnimeItem> getBookmarks() {
     final list = _prefs?.getStringList(_keyBookmarks) ?? [];
     return list.map((item) => AnimeItem.fromJson(item)).toList();
   }
 
-  static bool isBookmarked(String animeId, String slug) {
+  static bool _matchesAnime(AnimeItem a, String id, String slug, {String title = ''}) {
+    if (id.isNotEmpty && a.id.isNotEmpty && a.id == id) return true;
+    if (slug.isNotEmpty && a.slug.isNotEmpty && a.slug == slug) return true;
+    if (title.isNotEmpty && a.title.isNotEmpty && a.title.trim().toLowerCase() == title.trim().toLowerCase()) return true;
+    return false;
+  }
+
+  static bool isBookmarked(String animeId, String slug, {String title = ''}) {
     final bookmarks = getBookmarks();
-    return bookmarks.any((b) => b.id == animeId || b.slug == slug);
+    return bookmarks.any((b) => _matchesAnime(b, animeId, slug, title: title));
+  }
+
+  static void refreshBookmarks() {
+    bookmarksNotifier.value = getBookmarks();
   }
 
   static Future<bool> toggleBookmark(AnimeItem anime) async {
     final bookmarks = getBookmarks();
-    final index = bookmarks.indexWhere((b) => b.id == anime.id || b.slug == anime.slug);
+    final index = bookmarks.indexWhere(
+      (b) => _matchesAnime(b, anime.id, anime.slug, title: anime.title),
+    );
 
     bool nowBookmarked;
     if (index >= 0) {
@@ -169,6 +195,7 @@ class StorageService {
 
     final rawList = bookmarks.map((b) => b.toJson()).toList();
     await _prefs?.setStringList(_keyBookmarks, rawList);
+    bookmarksNotifier.value = List.unmodifiable(bookmarks);
     return nowBookmarked;
   }
 
@@ -218,6 +245,12 @@ class StorageService {
   static String get subLanguage => _prefs?.getString(_keySubLanguage) ?? 'id';
   static Future<void> setSubLanguage(String value) async {
     await _prefs?.setString(_keySubLanguage, value);
+  }
+
+  static bool get autoSkipIntro =>
+      _prefs?.getBool(_keyAutoSkipIntro) ?? false;
+  static Future<void> setAutoSkipIntro(bool value) async {
+    await _prefs?.setBool(_keyAutoSkipIntro, value);
   }
 
   // --- Theme Mode ---

@@ -18,76 +18,6 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   List<WatchHistoryItem> _history = [];
-  bool _usingSeed = false;
-
-  static final List<WatchHistoryItem> _seedHistory = [
-    WatchHistoryItem(
-      animeId: '151252',
-      animeSlug: 'koori-zokusei-danshi-to-cool-na-douryou-151252',
-      animeTitle: 'Koori Zokusei Danshi to Cool na Douryou',
-      animePoster:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx151252-ywrMmJG1Loc3.jpg',
-      episodeNumber: 4,
-      episodeTitle: 'Episode 4',
-      totalEpisodes: 12,
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-    ),
-    WatchHistoryItem(
-      animeId: '151252-3',
-      animeSlug: 'koori-zokusei-danshi-to-cool-na-douryou-151252',
-      animeTitle: 'Koori Zokusei Danshi to Cool na Douryou',
-      animePoster:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx151252-ywrMmJG1Loc3.jpg',
-      episodeNumber: 3,
-      episodeTitle: 'Episode 3',
-      totalEpisodes: 12,
-      timestamp: DateTime.now().millisecondsSinceEpoch - 3600000,
-    ),
-    WatchHistoryItem(
-      animeId: '6098-12',
-      animeSlug: 'sora-no-manimani-6098',
-      animeTitle: 'Sora no Manimani (At The Mercy of the Sky)',
-      animePoster:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx6098-GfPxtwnEsDAx.jpg',
-      episodeNumber: 12,
-      episodeTitle: 'Episode 12',
-      totalEpisodes: 12,
-      timestamp: DateTime.now().millisecondsSinceEpoch - 7200000,
-    ),
-    WatchHistoryItem(
-      animeId: '6098-11',
-      animeSlug: 'sora-no-manimani-6098',
-      animeTitle: 'Sora no Manimani (At The Mercy of the Sky)',
-      animePoster:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx6098-GfPxtwnEsDAx.jpg',
-      episodeNumber: 11,
-      episodeTitle: 'Episode 11',
-      totalEpisodes: 12,
-      timestamp: DateTime.now().millisecondsSinceEpoch - 10800000,
-    ),
-    WatchHistoryItem(
-      animeId: '6098-10',
-      animeSlug: 'sora-no-manimani-6098',
-      animeTitle: 'Sora no Manimani (At The Mercy of the Sky)',
-      animePoster:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx6098-GfPxtwnEsDAx.jpg',
-      episodeNumber: 10,
-      episodeTitle: 'Episode 10',
-      totalEpisodes: 12,
-      timestamp: DateTime.now().millisecondsSinceEpoch - 14400000,
-    ),
-    WatchHistoryItem(
-      animeId: '6098-9',
-      animeSlug: 'sora-no-manimani-6098',
-      animeTitle: 'Sora no Manimani (At The Mercy of the Sky)',
-      animePoster:
-          'https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx6098-GfPxtwnEsDAx.jpg',
-      episodeNumber: 9,
-      episodeTitle: 'Episode 9',
-      totalEpisodes: 12,
-      timestamp: DateTime.now().millisecondsSinceEpoch - 18000000,
-    ),
-  ];
 
   @override
   void initState() {
@@ -98,26 +28,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void _loadHistory() {
     final list = StorageService.getHistory();
     setState(() {
-      if (list.isNotEmpty) {
-        _history = list;
-        _usingSeed = false;
-      } else {
-        _history = List.from(_seedHistory);
-        _usingSeed = true;
-      }
+      _history = list;
     });
   }
 
   Future<void> _deleteItem(WatchHistoryItem item) async {
-    if (_usingSeed) {
-      setState(() {
-        _history.removeWhere((h) =>
-            h.animeId == item.animeId && h.episodeNumber == item.episodeNumber);
-      });
-    } else {
-      await StorageService.deleteHistoryItem(item.animeId, item.animeSlug);
-      _loadHistory();
-    }
+    await StorageService.deleteHistoryItem(item.animeId, item.animeSlug);
+    _loadHistory();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -152,14 +69,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
 
     if (confirm == true) {
-      if (_usingSeed) {
-        setState(() {
-          _history = [];
-        });
-      } else {
-        await StorageService.clearHistory();
-        _loadHistory();
-      }
+      await StorageService.clearHistory();
+      _loadHistory();
     }
   }
 
