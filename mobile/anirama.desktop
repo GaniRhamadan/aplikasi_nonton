@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Anirama
+Comment=Aplikasi Nonton Anime Resmi & Streaming Berkualitas HD
+Exec=anirama %u
+Icon=anirama
+Terminal=false
+Type=Application
+Categories=AudioVideo;Video;Player;
+Keywords=anime;streaming;video;mpv;anirama;
+StartupWMClass=anirama

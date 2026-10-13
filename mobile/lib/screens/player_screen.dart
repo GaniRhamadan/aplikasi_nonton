@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -175,7 +177,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _availableServers = servers;
         _selectedServer = preferred;
         _streamUrl = preferred.embedUrl;
-        _initWebView(preferred.embedUrl);
+        final isDesktop = !kIsWeb && (Platform.isLinux || Platform.isWindows);
+        if (!isDesktop) {
+          _initWebView(preferred.embedUrl);
+        }
 
         setState(() {
           _isLoadingStream = false;
@@ -233,7 +238,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _isLoadingStream = true;
       _currentSubtitleText = '';
     });
-    _initWebView(server.embedUrl);
+    final isDesktop = !kIsWeb && (Platform.isLinux || Platform.isWindows);
+    if (!isDesktop) {
+      _initWebView(server.embedUrl);
+    }
     setState(() {
       _isLoadingStream = false;
     });
@@ -3123,6 +3131,340 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
     }
 
+    final isDesktop = !kIsWeb && (Platform.isLinux || Platform.isWindows);
+    if (isDesktop) {
+      return _buildDesktopPlayerView();
+    }
+
     return Container(color: Colors.black);
+  }
+
+  Future<void> _launchMpvPlayer([String? customUrl]) async {
+    final targetUrl = customUrl ?? _directM3u8Url ?? _streamUrl;
+    if (targetUrl == null || targetUrl.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tautan video belum siap')),
+        );
+      }
+      return;
+    }
+
+    try {
+      if (!kIsWeb && (Platform.isLinux || Platform.isWindows)) {
+        final List<String> args = [
+          targetUrl,
+          '--title=${widget.anime.title} - Episode ${_currentEpisode.number}',
+          '--force-window=immediate',
+        ];
+        await Process.start('mpv', args, mode: ProcessStartMode.detached);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Membuka MPV Player di jendela desktop...'),
+              backgroundColor: AppColors.accent,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
+    } catch (e) {
+      debugPrint('Error starting mpv directly: $e');
+    }
+
+    await _openInExternalPlayer();
+  }
+
+  Widget _buildDesktopPlayerView() {
+    final currentIndex =
+        _allEpisodes.indexWhere((e) => e.number == _currentEpisode.number);
+    final hasPrev = currentIndex > 0;
+    final hasNext =
+        currentIndex >= 0 && currentIndex < _allEpisodes.length - 1;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0F172A),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${widget.anime.title} - Episode ${_currentEpisode.number}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              'Server: ${_selectedServer?.name ?? "HD-1 CDN"} • ${_isDub ? "Audio DUB" : "Audio Asli SUB"}',
+              style: const TextStyle(
+                color: Colors.white60,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: _toggleSubDub,
+            icon: const Icon(Icons.translate_rounded, color: AppColors.accent, size: 18),
+            label: Text(
+              _isDub ? 'DUB (Inggris)' : 'SUB (Asli)',
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+          ),
+          if (_availableServers.isNotEmpty)
+            PopupMenuButton<StreamServerItem>(
+              icon: const Icon(Icons.dns_rounded, color: Colors.white),
+              tooltip: 'Ganti Server Video',
+              onSelected: _switchServer,
+              itemBuilder: (ctx) => _availableServers.map((s) {
+                final isCur = _selectedServer?.name == s.name;
+                return PopupMenuItem(
+                  value: s,
+                  child: Row(
+                    children: [
+                      Icon(
+                        isCur ? Icons.check_circle : Icons.radio_button_unchecked,
+                        color: isCur ? AppColors.accent : Colors.grey,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(s.name, style: TextStyle(fontWeight: isCur ? FontWeight.w700 : FontWeight.w400)),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          IconButton(
+            icon: const Icon(Icons.format_list_bulleted_rounded, color: Colors.white),
+            tooltip: 'Daftar Episode',
+            onPressed: () {
+              setState(() => _isEpisodeDrawerOpen = !_isEpisodeDrawerOpen);
+            },
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 800),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF334155)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.accent, width: 2),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.play_circle_fill_rounded, color: AppColors.accent, size: 36),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Pemutar Desktop Anirama',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Episode ${_currentEpisode.number}: ${_currentEpisode.title.isEmpty ? widget.anime.title : _currentEpisode.title}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () => _launchMpvPlayer(),
+                          icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                          label: const Text('Putar di MPV Player'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.accent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                            textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: _openInExternalPlayer,
+                          icon: const Icon(Icons.ondemand_video_rounded, size: 20),
+                          label: const Text('Buka di VLC / Default'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Color(0xFF64748B)),
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                            textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final url = _streamUrl;
+                            if (url != null && url.isNotEmpty) {
+                              final uri = Uri.parse(url);
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.open_in_browser_rounded, size: 20),
+                          label: const Text('Buka di Browser'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white70,
+                            side: const BorderSide(color: Color(0xFF475569)),
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            final targetUrl = _directM3u8Url ?? _streamUrl ?? '';
+                            if (targetUrl.isNotEmpty) {
+                              Clipboard.setData(ClipboardData(text: targetUrl));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Tautan stream berhasil disalin ke clipboard!'),
+                                  backgroundColor: AppColors.accent,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.copy_rounded, size: 18),
+                          label: const Text('Salin Link M3U8'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white70,
+                            side: const BorderSide(color: Color(0xFF475569)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 28),
+                    const Divider(color: Color(0xFF334155), height: 1),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: hasPrev ? _goToPreviousEpisode : null,
+                          icon: const Icon(Icons.skip_previous_rounded, size: 18),
+                          label: const Text('Episode Sebelumnya'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF334155),
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: const Color(0xFF1E293B),
+                            disabledForegroundColor: Colors.white24,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            setState(() => _isEpisodeDrawerOpen = true);
+                          },
+                          icon: const Icon(Icons.list_rounded, size: 18),
+                          label: Text('Daftar Episode (${_allEpisodes.length})'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white70,
+                            side: const BorderSide(color: Color(0xFF475569)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: hasNext ? _goToNextEpisode : null,
+                          icon: const Icon(Icons.skip_next_rounded, size: 18),
+                          label: const Text('Episode Selanjutnya'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.accent,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: const Color(0xFF1E293B),
+                            disabledForegroundColor: Colors.white24,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (_isEpisodeDrawerOpen) ...[
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => setState(() => _isEpisodeDrawerOpen = false),
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.5),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              bottom: 0,
+              right: 0,
+              child: PlayerEpisodeDrawer(
+                episodes: _allEpisodes,
+                currentEpisodeNumber: _currentEpisode.number,
+                currentProgress: 0.5,
+                totalDurationText: '24:00',
+                onEpisodeSelected: (ep) {
+                  setState(() {
+                    _currentEpisode = ep;
+                    _isEpisodeDrawerOpen = false;
+                  });
+                  _loadStreamForEpisode(ep);
+                },
+                onClose: () {
+                  setState(() => _isEpisodeDrawerOpen = false);
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }

@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:ota_update/ota_update.dart';
@@ -100,6 +102,11 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       _downloadProgress = 0;
       _statusMessage = 'Menghubungkan ke server pembaruan...';
     });
+
+    if (kIsWeb || !Platform.isAndroid) {
+      _fallbackBrowserDownload();
+      return;
+    }
 
     try {
       _otaSubscription = OtaUpdate()
