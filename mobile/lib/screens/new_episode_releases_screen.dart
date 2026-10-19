@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/anime_models.dart';
 import '../services/anime_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/responsive_layout.dart';
 import 'anime_detail_screen.dart';
 import 'search_screen.dart';
 
@@ -134,8 +135,8 @@ class _NewEpisodeReleasesScreenState extends State<NewEpisodeReleasesScreen> {
                 )
               : GridView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: ResponsiveLayout.gridColumns(context),
                     crossAxisSpacing: 14,
                     mainAxisSpacing: 14,
                     childAspectRatio: 0.70,

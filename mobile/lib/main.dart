@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'screens/splash_screen.dart';
 import 'services/storage_service.dart';
@@ -40,6 +41,14 @@ class AniramaApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: currentMode,
+          scrollBehavior: const MaterialScrollBehavior().copyWith(
+            dragDevices: {
+              PointerDeviceKind.mouse,
+              PointerDeviceKind.touch,
+              PointerDeviceKind.trackpad,
+              PointerDeviceKind.stylus,
+            },
+          ),
           home: const SplashScreen(),
         );
       },

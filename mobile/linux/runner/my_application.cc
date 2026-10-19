@@ -53,6 +53,15 @@ static void my_application_activate(GApplication* application) {
   }
 
   gtk_window_set_default_size(window, 1280, 720);
+  gtk_window_set_default_icon_name("anirama");
+  gtk_window_set_icon_name(window, "anirama");
+
+  g_autofree gchar* icon_path = g_build_filename(
+      g_get_user_data_dir(), "icons", "hicolor", "256x256", "apps", "anirama.png",
+      nullptr);
+  if (g_file_test(icon_path, G_FILE_TEST_EXISTS)) {
+    gtk_window_set_icon_from_file(window, icon_path, nullptr);
+  }
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(

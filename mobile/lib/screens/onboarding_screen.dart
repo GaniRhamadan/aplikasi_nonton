@@ -284,8 +284,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       offset: Offset(0, offsetY),
       child: SizedBox(
         width: 135,
-        child: Column(
-          children: urls.map((url) {
+        child: SingleChildScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          child: Column(
+            children: urls.map((url) {
             return Container(
               margin: const EdgeInsets.only(bottom: 14),
               height: 185,
@@ -327,6 +329,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             );
           }).toList(),
+        ),
         ),
       ),
     );

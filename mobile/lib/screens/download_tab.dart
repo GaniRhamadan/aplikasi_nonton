@@ -22,7 +22,7 @@ class DownloadTab extends StatefulWidget {
 
   @override
   State<DownloadTab> createState() => _DownloadTabState();
-}
+} 
 
 class _DownloadTabState extends State<DownloadTab> {
   List<DownloadItem> _downloads = [];
@@ -312,6 +312,6 @@ class _DownloadTabState extends State<DownloadTab> {
             ),
     );
   }
-}
+  }
 
 typedef DownloadScreen = DownloadTab;

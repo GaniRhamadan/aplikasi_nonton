@@ -1741,6 +1741,16 @@ class AnimeService {
     return const [];
   }
 
+  /// Fetch candidates for a specific genre slug with filter fallback
+  Future<List<AnimeItem>> _fetchCandidatesForSlug(String slug, int page) async {
+    final list =
+        await _fetchCandidatesFromUrl('$baseApi/genres/$slug?page=$page');
+    if (list.isNotEmpty) return list;
+    return _fetchCandidatesFromUrl(
+      '$baseApi/filter?genre%5B%5D=${Uri.encodeQueryComponent(slug)}&page=$page',
+    );
+  }
+
   static final Map<String, String> _genreNameMap = {
     for (final g in allGenres) (g['slug'] ?? ''): (g['name'] ?? ''),
   };
@@ -1769,13 +1779,9 @@ class AnimeService {
       // 1. Fetch pages concurrently for all selected genres (page 1 + page 2 for depth)
       final List<Future<List<AnimeItem>>> fetchTasks = [];
       for (final slug in validSlugs) {
-        fetchTasks.add(
-          _fetchCandidatesFromUrl('$baseApi/genres/$slug?page=$page'),
-        );
+        fetchTasks.add(_fetchCandidatesForSlug(slug, page));
         if (page == 1) {
-          fetchTasks.add(
-            _fetchCandidatesFromUrl('$baseApi/genres/$slug?page=2'),
-          );
+          fetchTasks.add(_fetchCandidatesForSlug(slug, 2));
         }
       }
 
@@ -1977,13 +1983,18 @@ class AnimeService {
 
   /// Parse search HTML page
   static List<AnimeItem> _parseSearchHtml(String html) {
+    // If the HTML has a sidebar (top 10 widgets, recommendations), restrict parsing to main content
+    final sidebarIndex = html.indexOf('id="main-sidebar"');
+    final contentHtml =
+        sidebarIndex != -1 ? html.substring(0, sidebarIndex) : html;
+
     final List<AnimeItem> items = [];
     final itemRegex = RegExp(
       r'<div class="flw-item[^"]*">([\s\S]*?)<div class="clearfix"><\/div>',
       multiLine: true,
     );
 
-    final matches = itemRegex.allMatches(html);
+    final matches = itemRegex.allMatches(contentHtml);
     for (final match in matches) {
       final block = match.group(1) ?? '';
 
@@ -2207,8 +2218,8 @@ class AnimeService {
     return const [];
   }
 
-  /// Extract direct HLS master.m3u8 stream from ZokoAnime embed page for external native player
-  Future<String?> getDirectM3u8Stream(String zokoEmbedUrl) async {
+  /// Extract direct HLS master.m3u8 stream and subtitles from ZokoAnime embed page
+  Future<Map<String, String>?> getDirectStreamInfo(String zokoEmbedUrl) async {
     try {
       final response = await http
           .get(
@@ -2233,12 +2244,31 @@ class AnimeService {
           final data = json.decode(jsonString);
           final src = data['src']?.toString();
           if (src != null && src.isNotEmpty) {
-            return src;
+            String subUrl = '';
+            final subs = data['subtitles'];
+            if (subs is List && subs.isNotEmpty) {
+              final defaultSub = subs.firstWhere(
+                (s) => s['default'] == true,
+                orElse: () => subs.first,
+              );
+              subUrl = defaultSub['src']?.toString() ?? '';
+            }
+            return {
+              'src': src,
+              'sub': subUrl,
+              'referrer': 'https://zokoanime.video/',
+            };
           }
         }
       }
     } catch (_) {}
     return null;
+  }
+
+  /// Extract direct HLS master.m3u8 stream from ZokoAnime embed page for external native player
+  Future<String?> getDirectM3u8Stream(String zokoEmbedUrl) async {
+    final info = await getDirectStreamInfo(zokoEmbedUrl);
+    return info?['src'];
   }
 
   /// Get stream servers and embed player URL (HD-1 fast CDN by default)

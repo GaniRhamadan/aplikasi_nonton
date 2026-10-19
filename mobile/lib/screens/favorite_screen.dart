@@ -4,6 +4,7 @@ import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/empty_my_list_view.dart';
+import '../widgets/responsive_layout.dart';
 import 'anime_detail_screen.dart';
 import 'search_screen.dart';
 
@@ -118,8 +119,8 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                     gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
+                        SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: ResponsiveLayout.gridColumns(context),
                       crossAxisSpacing: 14,
                       mainAxisSpacing: 16,
                       childAspectRatio: 0.69,

@@ -5,6 +5,7 @@ import '../services/anime_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/download_progress_dialog.dart';
+import '../widgets/responsive_layout.dart';
 import 'player_screen.dart';
 
 class AnimeDetailScreen extends StatefulWidget {
@@ -256,6 +257,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
     }
 
     // 2. Fetch intelligent dynamic recommendations matching genre and synopsis
+    if (!mounted) return;
     setState(() => _isLoadingRecommendations = true);
     try {
       final recResult = await _animeService.getRecommendationsForAnime(
@@ -275,6 +277,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
     }
 
     // 3. Fetch seasons for this anime franchise
+    if (!mounted) return;
     setState(() => _isLoadingSeasons = true);
     try {
       final sList = await _animeService.getSeasonsForAnime(_currentAnime);
@@ -1423,8 +1426,8 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
       physics: const NeverScrollableScrollPhysics(),
       padding: EdgeInsets.zero,
       itemCount: _seasons.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: ResponsiveLayout.gridColumns(context),
         crossAxisSpacing: 14,
         mainAxisSpacing: 14,
         childAspectRatio: 0.68,
@@ -1604,8 +1607,8 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
       physics: const NeverScrollableScrollPhysics(),
       padding: EdgeInsets.zero,
       itemCount: items.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: ResponsiveLayout.gridColumns(context),
         crossAxisSpacing: 14,
         mainAxisSpacing: 14,
         childAspectRatio: 0.68,

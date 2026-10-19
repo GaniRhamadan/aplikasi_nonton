@@ -3,6 +3,7 @@ import '../models/anime_models.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/anime_card.dart';
+import '../widgets/responsive_layout.dart';
 import '../widgets/anime_history_card.dart';
 
 class LibraryTab extends StatefulWidget {
@@ -156,8 +157,8 @@ class _LibraryTabState extends State<LibraryTab>
 
     return GridView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: ResponsiveLayout.gridColumns(context),
         childAspectRatio: 0.65,
         crossAxisSpacing: 12,
         mainAxisSpacing: 14,

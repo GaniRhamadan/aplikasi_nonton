@@ -4,6 +4,7 @@ import '../models/anime_models.dart';
 import '../services/anime_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/no_schedule_view.dart';
+import '../widgets/responsive_layout.dart';
 import 'anime_detail_screen.dart';
 
 class ScheduleTab extends StatefulWidget {
@@ -526,8 +527,9 @@ class _ScheduleTabState extends State<ScheduleTab> {
   Widget _buildScheduleGrid() {
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: ResponsiveLayout.gridColumns(context,
+            targetItemWidth: 120, minColumns: 3, maxColumns: 8),
         crossAxisSpacing: 10,
         mainAxisSpacing: 16,
         childAspectRatio: 0.365,

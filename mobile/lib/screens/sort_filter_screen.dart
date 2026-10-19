@@ -16,11 +16,11 @@ class SortFilterScreen extends StatefulWidget {
 }
 
 class _SortFilterScreenState extends State<SortFilterScreen> {
-  late String _selectedSort;
-  late String _selectedCategory;
-  late String _selectedRegion;
-  late String _selectedGenre;
-  late String _selectedYear;
+  String _selectedSort = 'Popularity';
+  String _selectedCategory = 'Episode';
+  String _selectedRegion = 'All';
+  Set<String> _selectedGenres = {};
+  String _selectedYear = 'All';
 
   bool _isGenreExpanded = false;
   bool _isYearExpanded = false;
@@ -172,17 +172,28 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
   @override
   void initState() {
     super.initState();
-    final filter = widget.initialFilter ?? SortFilterData.fromScreenshot();
-    _selectedSort = filter.sort;
-    _selectedCategory = filter.category;
-    _selectedRegion = filter.region;
-    _selectedGenre = filter.genre;
-    _selectedYear = filter.releaseYear;
+    final filter = widget.initialFilter ?? SortFilterData.defaultFilter();
+    _selectedSort = filter.sort.isNotEmpty ? filter.sort : 'Popularity';
+    _selectedCategory = filter.category.isNotEmpty ? filter.category : 'Episode';
+    _selectedRegion = filter.region.isNotEmpty ? filter.region : 'All';
+    _selectedYear = filter.releaseYear.isNotEmpty ? filter.releaseYear : 'All';
+    final initialList = filter.activeGenres;
+    if (initialList.isNotEmpty) {
+      _selectedGenres = Set<String>.from(initialList);
+    } else if (filter.genre.isNotEmpty &&
+        filter.genre != 'All' &&
+        filter.genre != 'Semua') {
+      _selectedGenres = filter.genre
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty && s != 'All' && s != 'Semua')
+          .toSet();
+    } else {
+      _selectedGenres = {};
+    }
 
     // Automatically expand genres if user selected a genre outside the initial top 9
-    if (_selectedGenre.isNotEmpty &&
-        _selectedGenre != 'All' &&
-        !_initialGenres.contains(_selectedGenre)) {
+    if (_selectedGenres.any((g) => !_initialGenres.contains(g))) {
       _isGenreExpanded = true;
     }
   }
@@ -198,18 +209,20 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
       _selectedSort = 'Popularity';
       _selectedCategory = 'Episode';
       _selectedRegion = 'All';
-      _selectedGenre = 'All';
+      _selectedGenres.clear();
       _selectedYear = 'All';
       _genreSearchController.clear();
     });
   }
 
   void _onApply() {
+    final genreList = _selectedGenres.toList();
     final result = SortFilterData(
       sort: _selectedSort,
       category: _selectedCategory,
       region: _selectedRegion,
-      genre: _selectedGenre,
+      genre: genreList.isEmpty ? 'All' : genreList.join(', '),
+      genres: genreList,
       releaseYear: _selectedYear,
     );
     Navigator.pop(context, result);
@@ -240,7 +253,10 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: SafeArea(
-        child: Column(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: Column(
           children: [
             // Top App Bar
             Padding(
@@ -336,7 +352,25 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
                         Row(
                           children: [
                             _buildSectionTitle('Genre'),
-                            if (_isGenreExpanded) ...[
+                            if (_selectedGenres.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.accent,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${_selectedGenres.length} selected',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ] else if (_isGenreExpanded) ...[
                               const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -391,6 +425,7 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
                         ),
                         child: TextField(
                           controller: _genreSearchController,
+                          cursorColor: AppColors.accent,
                           onChanged: (val) => setState(() {}),
                           style: TextStyle(
                             color: AppColors.textPrimary,
@@ -417,7 +452,13 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
                                     },
                                   )
                                 : null,
+                            filled: false,
+                            fillColor: Colors.transparent,
                             border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            errorBorder: InputBorder.none,
+                            disabledBorder: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 10,
@@ -443,10 +484,27 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
                         spacing: 10,
                         runSpacing: 12,
                         children: visibleGenres.map((g) {
+                          final isAll = g == 'Semua' || g == 'All';
+                          final isSelected = isAll
+                              ? _selectedGenres.isEmpty
+                              : _selectedGenres.contains(g);
+
                           return _buildPillChip(
                             label: g,
-                            isSelected: _selectedGenre == g,
-                            onTap: () => setState(() => _selectedGenre = g),
+                            isSelected: isSelected,
+                            onTap: () {
+                              setState(() {
+                                if (isAll) {
+                                  _selectedGenres.clear();
+                                } else {
+                                  if (_selectedGenres.contains(g)) {
+                                    _selectedGenres.remove(g);
+                                  } else {
+                                    _selectedGenres.add(g);
+                                  }
+                                }
+                              });
+                            },
                           );
                         }).toList(),
                       ),
@@ -567,7 +625,9 @@ class _SortFilterScreenState extends State<SortFilterScreen> {
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildSectionTitle(String title) {

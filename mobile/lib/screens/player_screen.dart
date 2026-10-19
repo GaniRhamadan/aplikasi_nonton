@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/anime_models.dart';
 import '../services/anime_service.dart';
 import '../services/storage_service.dart';
+import '../services/subtitle_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/download_progress_dialog.dart';
 import '../widgets/player_episode_drawer.dart';
@@ -32,6 +33,8 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen> {
   final AnimeService _animeService = AnimeService();
+  final SubtitleService _subtitleService = SubtitleService();
+  bool _isPreparingPlayback = false;
   late EpisodeItem _currentEpisode;
   List<EpisodeItem> _allEpisodes = [];
   bool _isLoadingEpisodes = true;
@@ -48,6 +51,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   List<StreamServerItem> _availableServers = [];
   StreamServerItem? _selectedServer;
   String? _directM3u8Url;
+  String? _directSubtitleUrl;
 
   // Custom Video Player Controls State
   Duration _currentPosition = Duration.zero;
@@ -126,6 +130,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _availableServers = [];
       _selectedServer = null;
       _directM3u8Url = null;
+      _directSubtitleUrl = null;
       _currentSubtitleText = '';
       _isIntroActive = false;
       _introStart = null;
@@ -172,12 +177,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     if (mounted) {
       if (servers.isNotEmpty) {
-        // Automatically select the fastest CDN server (HD-1) by default
-        final preferred = servers.first;
+        final isDesktop = !kIsWeb && (Platform.isLinux || Platform.isWindows);
+        // On desktop, prefer ZokoAnime server by default because it yields direct native M3U8 stream!
+        final preferred = isDesktop
+            ? servers.firstWhere(
+                (s) =>
+                    s.name.toLowerCase().contains('zoko') ||
+                    s.embedUrl.contains('zokoanime'),
+                orElse: () => servers.first,
+              )
+            : servers.first;
         _availableServers = servers;
         _selectedServer = preferred;
         _streamUrl = preferred.embedUrl;
-        final isDesktop = !kIsWeb && (Platform.isLinux || Platform.isWindows);
         if (!isDesktop) {
           _initWebView(preferred.embedUrl);
         }
@@ -218,11 +230,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
       orElse: () => servers.first,
     );
     if (zoko.embedUrl.contains('zokoanime')) {
-      final m3u8 = await _animeService.getDirectM3u8Stream(zoko.embedUrl);
-      if (mounted && m3u8 != null) {
+      final info = await _animeService.getDirectStreamInfo(zoko.embedUrl);
+      if (mounted && info != null) {
         setState(() {
-          _directM3u8Url = m3u8;
+          _directM3u8Url = info['src'];
+          _directSubtitleUrl = info['sub'];
         });
+
+        // Pre-warm Indonesian subtitle generation in background for desktop
+        final isDesktop = !kIsWeb && (Platform.isLinux || Platform.isWindows);
+        final sub = info['sub'];
+        if (isDesktop && _subIndoEnabled && sub != null && sub.isNotEmpty) {
+          _subtitleService.getOrGenerateIndonesianSubtitle(
+            englishVttUrl: sub,
+            animeTitle: widget.anime.title,
+            episodeNumber: _currentEpisode.number,
+          );
+        }
       }
     }
   }
@@ -3140,40 +3164,149 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   Future<void> _launchMpvPlayer([String? customUrl]) async {
-    final targetUrl = customUrl ?? _directM3u8Url ?? _streamUrl;
-    if (targetUrl == null || targetUrl.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Tautan video belum siap')),
-        );
-      }
-      return;
-    }
+    if (_isPreparingPlayback) return;
+    setState(() {
+      _isPreparingPlayback = true;
+    });
 
     try {
-      if (!kIsWeb && (Platform.isLinux || Platform.isWindows)) {
-        final List<String> args = [
-          targetUrl,
-          '--title=${widget.anime.title} - Episode ${_currentEpisode.number}',
-          '--force-window=immediate',
-        ];
-        await Process.start('mpv', args, mode: ProcessStartMode.detached);
+      String? targetUrl = customUrl ?? _directM3u8Url;
+      String? subUrl = _directSubtitleUrl;
+
+      // If direct m3u8 is not yet resolved, try resolving it immediately from Zoko
+      if (targetUrl == null || !targetUrl.contains('.m3u8')) {
+        final zoko = _availableServers.firstWhere(
+          (s) =>
+              s.name.toLowerCase().contains('zoko') ||
+              s.embedUrl.contains('zokoanime'),
+          orElse: () =>
+              _selectedServer ??
+              (_availableServers.isNotEmpty
+                  ? _availableServers.first
+                  : const StreamServerItem(name: '', type: '', embedUrl: '')),
+        );
+        if (zoko.embedUrl.contains('zokoanime')) {
+          final info = await _animeService.getDirectStreamInfo(zoko.embedUrl);
+          if (info != null) {
+            targetUrl = info['src'];
+            subUrl = info['sub'];
+            if (mounted) {
+              setState(() {
+                _directM3u8Url = targetUrl;
+                _directSubtitleUrl = subUrl;
+              });
+            }
+          }
+        }
+      }
+
+      targetUrl ??= _streamUrl;
+
+      if (targetUrl == null || targetUrl.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Membuka MPV Player di jendela desktop...'),
-              backgroundColor: AppColors.accent,
-              duration: Duration(seconds: 2),
-            ),
+            const SnackBar(content: Text('Tautan video belum siap diputar')),
           );
         }
         return;
       }
-    } catch (e) {
-      debugPrint('Error starting mpv directly: $e');
-    }
 
-    await _openInExternalPlayer();
+      // If targetUrl is an embed web page and not direct m3u8, open in browser
+      if (!targetUrl.contains('.m3u8')) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Server ini adalah pemutar web, membuka di Browser...'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        try {
+          final uri = Uri.parse(targetUrl);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+            return;
+          }
+        } catch (_) {}
+      }
+
+      try {
+        if (!kIsWeb && (Platform.isLinux || Platform.isWindows)) {
+          String? indoSubPath;
+          if (_subIndoEnabled && subUrl != null && subUrl.isNotEmpty) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Menyiapkan Subtitle Indonesia (Full HD 1080p)...'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+            indoSubPath = await _subtitleService.getOrGenerateIndonesianSubtitle(
+              englishVttUrl: subUrl,
+              animeTitle: widget.anime.title,
+              episodeNumber: _currentEpisode.number,
+              onStatusUpdate: (msg) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(msg),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+            );
+          }
+
+          final List<String> args = [
+            targetUrl,
+            '--force-media-title=${widget.anime.title} - Episode ${_currentEpisode.number}',
+            '--title=${widget.anime.title} - Episode ${_currentEpisode.number}',
+            '--referrer=https://zokoanime.video/',
+            '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            '--force-window=immediate',
+            '--keep-open=yes',
+          ];
+
+          // 1. Subtitle Indonesia (Track 1 / Otomatis aktif)
+          if (indoSubPath != null && File(indoSubPath).existsSync()) {
+            args.add('--sub-file=$indoSubPath');
+          }
+          // 2. Subtitle Asli / English (Track 2 / Bisa diganti dengan tombol 'j' di MPV)
+          if (subUrl != null && subUrl.isNotEmpty) {
+            args.add('--sub-file=$subUrl');
+          }
+          args.add('--slang=id,ind,en');
+
+          await Process.start('mpv', args, mode: ProcessStartMode.detached);
+          if (mounted) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(indoSubPath != null
+                    ? 'Memutar di MPV (Full HD 1080p + Sub Indo) 🎬'
+                    : 'Memutar di MPV Player (Kualitas Full HD 1080p)...'),
+                backgroundColor: AppColors.accent,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+          return;
+        }
+      } catch (e) {
+        debugPrint('Error starting mpv directly: $e');
+      }
+
+      await _openInExternalPlayer();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPreparingPlayback = false;
+        });
+      }
+    }
   }
 
   Widget _buildDesktopPlayerView() {
@@ -3213,6 +3346,27 @@ class _PlayerScreenState extends State<PlayerScreen> {
           ],
         ),
         actions: [
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _subIndoEnabled = !_subIndoEnabled;
+              });
+              StorageService.setSubLanguage(_subIndoEnabled ? 'id' : 'en');
+            },
+            icon: Icon(
+              Icons.subtitles_rounded,
+              color: _subIndoEnabled ? AppColors.accent : Colors.white60,
+              size: 18,
+            ),
+            label: Text(
+              _subIndoEnabled ? 'Sub Indo (Aktif)' : 'Sub Indo (Mati)',
+              style: TextStyle(
+                color: _subIndoEnabled ? AppColors.accent : Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
           TextButton.icon(
             onPressed: _toggleSubDub,
             icon: const Icon(Icons.translate_rounded, color: AppColors.accent, size: 18),
@@ -3308,6 +3462,81 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
+                    const SizedBox(height: 14),
+                    // Badges for resolution & Sub Indo status
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF334155),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.high_quality_rounded, color: Colors.amber, size: 16),
+                              SizedBox(width: 5),
+                              Text(
+                                '1080p Full HD',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        InkWell(
+                          onTap: () {
+                            setState(() {
+                              _subIndoEnabled = !_subIndoEnabled;
+                            });
+                            StorageService.setSubLanguage(_subIndoEnabled ? 'id' : 'en');
+                          },
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: _subIndoEnabled
+                                  ? AppColors.accent.withValues(alpha: 0.2)
+                                  : Colors.black26,
+                              border: Border.all(
+                                color: _subIndoEnabled ? AppColors.accent : const Color(0xFF475569),
+                              ),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _subIndoEnabled
+                                      ? Icons.subtitles_rounded
+                                      : Icons.subtitles_off_rounded,
+                                  color: _subIndoEnabled ? AppColors.accent : Colors.white60,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  _subIndoEnabled
+                                      ? 'Subtitle Indonesia (Aktif)'
+                                      : 'Subtitle Indonesia (Mati)',
+                                  style: TextStyle(
+                                    color: _subIndoEnabled ? AppColors.accent : Colors.white60,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 24),
                     Wrap(
                       spacing: 12,
@@ -3315,9 +3544,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       alignment: WrapAlignment.center,
                       children: [
                         ElevatedButton.icon(
-                          onPressed: () => _launchMpvPlayer(),
-                          icon: const Icon(Icons.play_arrow_rounded, size: 22),
-                          label: const Text('Putar di MPV Player'),
+                          onPressed: _isPreparingPlayback ? null : () => _launchMpvPlayer(),
+                          icon: _isPreparingPlayback
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.play_arrow_rounded, size: 22),
+                          label: Text(
+                            _isPreparingPlayback
+                                ? 'Menyiapkan Sub Indo...'
+                                : 'Putar di MPV Player',
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.accent,
                             foregroundColor: Colors.white,

@@ -92,12 +92,23 @@ class _ExploreTabState extends State<ExploreTab> {
 
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
-    final results = await _animeService.getPalingPopuler();
-    if (mounted) {
-      setState(() {
-        _popularRecommendations = results;
-        _isLoading = false;
-      });
+    try {
+      final results = await _animeService.getPalingPopuler();
+      if (mounted) {
+        setState(() {
+          _popularRecommendations = results.isNotEmpty
+              ? results
+              : List.from(AnimeService.curatedAnime);
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _popularRecommendations = List.from(AnimeService.curatedAnime);
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -145,6 +156,15 @@ class _ExploreTabState extends State<ExploreTab> {
           results = await _animeService
               .getAnimeByGenres(_selectedGenreSlugs.toList());
         }
+
+        if (results.isEmpty) {
+          results = AnimeService.curatedAnime.where((item) {
+            return item.genres.any((g) =>
+                _selectedGenreSlugs.contains(AnimeService.slugForGenreName(g)) ||
+                _selectedGenreSlugs.any((s) => g.toLowerCase().contains(s)));
+          }).toList();
+        }
+
         if (mounted) {
           setState(() {
             _searchResults = results;
@@ -285,14 +305,22 @@ class _ExploreTabState extends State<ExploreTab> {
               return name.contains(query) || slug.contains(query);
             }).toList();
 
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.82,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(22)),
-                border: Border(
-                  top: BorderSide(color: AppColors.border, width: 1.5),
+            final screenWidth = MediaQuery.of(context).size.width;
+            final isDesktop = screenWidth >= 768;
+
+            return Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: isDesktop ? 680 : double.infinity,
+                ),
+                child: Container(
+                  height: MediaQuery.of(context).size.height * 0.82,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(22)),
+                    border: Border(
+                      top: BorderSide(color: AppColors.border, width: 1.5),
                   left: BorderSide(color: AppColors.border, width: 1.5),
                   right: BorderSide(color: AppColors.border, width: 1.5),
                 ),
@@ -403,6 +431,7 @@ class _ExploreTabState extends State<ExploreTab> {
                           Expanded(
                             child: TextField(
                               controller: searchModalCtrl,
+                              cursorColor: AppColors.accent,
                               onChanged: (_) => setModalState(() {}),
                               style: TextStyle(
                                 color: AppColors.textPrimary,
@@ -415,7 +444,13 @@ class _ExploreTabState extends State<ExploreTab> {
                                   color: AppColors.textMuted,
                                   fontSize: 12.5,
                                 ),
+                                filled: false,
+                                fillColor: Colors.transparent,
                                 border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                errorBorder: InputBorder.none,
+                                disabledBorder: InputBorder.none,
                                 isDense: true,
                                 contentPadding:
                                     const EdgeInsets.symmetric(vertical: 11),
@@ -621,11 +656,13 @@ class _ExploreTabState extends State<ExploreTab> {
                   ),
                 ],
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );
+  },
+);
   }
 
   @override
@@ -684,6 +721,7 @@ class _ExploreTabState extends State<ExploreTab> {
                     Expanded(
                       child: TextField(
                         controller: _searchController,
+                        cursorColor: AppColors.accent,
                         onChanged: _onSearchChanged,
                         style: TextStyle(
                           color: AppColors.textPrimary,
@@ -697,7 +735,13 @@ class _ExploreTabState extends State<ExploreTab> {
                             fontSize: 13.5,
                             fontWeight: FontWeight.w500,
                           ),
+                          filled: false,
+                          fillColor: Colors.transparent,
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
                           isDense: true,
                           contentPadding:
                               const EdgeInsets.symmetric(vertical: 14),
